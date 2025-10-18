@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .input {
+    @apply w-full px-3 py-2 border border-slate-300 rounded-md text-sm
+           text-slate-700 placeholder-slate-400 bg-white
+           focus:outline-none
+           transition-shadow;
+  }
+
+  /* Remove spin buttons for number inputs */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    @apply appearance-none;
+    margin: 0;
+  }
+
+  /* Make select inputs clickable */
+  select.input {
+    @apply cursor-pointer;
+  }
+}
+
+@layer base {
+  input,
+  textarea {
+    @apply w-full px-3 py-2 border border-slate-300 rounded-md text-sm
+           text-slate-700 placeholder-slate-400 bg-white
+           focus:outline-none
+           transition-shadow;
+    cursor: text !important; /* ✅ Force text cursor */
+  }
+
+  select {
+    @apply w-full px-3 py-2 border border-slate-300 rounded-md text-sm
+           text-slate-700 placeholder-slate-400 bg-white
+           focus:outline-none
+           transition-shadow cursor-pointer;
+  }
+
+  /* Remove spin buttons */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+}
