@@ -29,7 +29,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({
   );
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6">
+    <div className="bg-white rounded-2xl shadow-lg   p-0">
       {/* Tabs */}
       <div className="flex items-center justify-around mb-6 border-b border-slate-200">
         {["details", "rooms", "summary"].map((tab) => (
@@ -80,7 +80,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({
           {rooms.map((room) => (
             <div
               key={room.id}
-              className="rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition-all bg-white p-4"
+              className=" bg-white p-0"
             >
               <RoomCard
                 room={room}

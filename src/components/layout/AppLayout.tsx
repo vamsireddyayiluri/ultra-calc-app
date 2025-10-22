@@ -16,7 +16,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   return (
     <div className="min-h-screen bg-[#FFF8EE]">
       <Header title={title} subtitle={subtitle} />
-      <main className="p-6 bg-[#FFF8EE]">{children}</main>
+      <main className="p-4 bg-[#FFF8EE]">{children}</main>
     </div>
   );
 };

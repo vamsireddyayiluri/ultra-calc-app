@@ -12,15 +12,8 @@ export default function VerifyPage() {
   const [emailBlocked, setEmailBlocked] = useState(false);
 
   useEffect(() => {
-    const visited = localStorage.getItem("visited_verified_page");
-    if (!visited) {
-      localStorage.setItem("visited_verified_page", "true");
-      verify();
-    }
+    verify();
 
-    return () => {
-      localStorage.setItem("visited_verified_page", "false");
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

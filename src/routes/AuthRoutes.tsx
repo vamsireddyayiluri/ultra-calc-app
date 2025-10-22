@@ -1,9 +1,9 @@
 import { RouteObject } from "react-router-dom";
-import RegisterPage from "../pages/auth/register";
-import LoginPage from "../pages/auth/login";
-import VerifyPage from "../components/auth/VerifyEmail";
-import ForgotPasswordPage from "../pages/auth/forgot";
-import ResetPasswordPage from "../pages/auth/reset";
+import RegisterPage from "../pages/auth/Register";
+import VerifyPage from "../pages/auth/Verify";
+import LoginPage from "../pages/auth/Login";
+import ForgotPasswordPage from "../pages/auth/Forgot";
+
 
 
 export const authRoutes: RouteObject[] = [
@@ -11,5 +11,4 @@ export const authRoutes: RouteObject[] = [
   { path: "login", element: <LoginPage /> },
   { path: "verify", element: <VerifyPage /> },
   { path: "forgot", element: <ForgotPasswordPage /> },
-  { path: "reset", element: <ResetPasswordPage /> },
 ];

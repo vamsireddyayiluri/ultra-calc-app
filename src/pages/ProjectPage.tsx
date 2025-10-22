@@ -18,6 +18,8 @@ import { CircularProgress } from "@mui/material";
 import { projectSchema } from "../validations.ts/projectSchema";
 import z from "zod";
 import { roomSchema } from "../validations.ts/roomSchema";
+import { exportPDF } from "../utils/pdfExport";
+import { exportCSV } from "../utils/csvExport";
 
 export default function ProjectPage() {
   const { id } = useParams<{ id?: string }>();
@@ -31,6 +33,7 @@ export default function ProjectPage() {
   >(null);
   const [isSaving, setIsSaving] = useState(false);
   const { showMessage } = useSnackbar();
+  const [showActionsDropdown, setShowActionsDropdown] = useState(false);
 
   // Load project or create a new one
   useEffect(() => {
@@ -63,9 +66,25 @@ export default function ProjectPage() {
 
     fetchData();
   }, [id, projects]);
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!event.target.closest(".actions-dropdown")) {
+        setShowActionsDropdown(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const updateProject = (patch: Partial<ProjectHeader>) => {
     if (!project) return;
+    console.log("Updating project with patch:", patch, {
+      ...project,
+      ...patch,
+    });
     setProject({ ...project, ...patch });
   };
 
@@ -134,20 +153,20 @@ export default function ProjectPage() {
       setIsSaving(false);
 
       if (err instanceof z.ZodError) {
-        showMessage(err.issues?.[0]?.message ?? "Validation failed");
+        showMessage(err.issues?.[0]?.message ?? "Validation failed", "error");
         console.warn("Validation failed:", err.issues);
         return;
       }
 
       // ✅ Handle normal errors (like our custom "Room X: ..." ones)
       if (err instanceof Error) {
-        showMessage(err.message);
+        showMessage(err.message, "error");
         console.warn("Validation failed:", err.message);
         return;
       }
 
       console.error("Unexpected error:", err);
-      showMessage("Something went wrong while saving.");
+      showMessage("Something went wrong while saving.", "error");
     }
   };
 
@@ -163,29 +182,30 @@ export default function ProjectPage() {
       title="Ultra-Calc"
       subtitle="Room-by-room heat loss calculation and project management for HVAC professionals."
     >
-      <main className="p-4 sm:p-6 max-w-7xl mx-auto min-h-screen bg-white">
+      <main className="p-4 sm:p-4 max-w-7xl mx-auto min-h-screen bg-white">
         {/* Toolbar: Back + Units + Save/Delete */}
         <div
           className="flex flex-col sm:flex-row sm:items-center sm:justify-between 
-               gap-4 sm:gap-6 mb-6 bg-white border-b border-slate-100 pb-4 sm:pb-0"
+      gap-4 sm:gap-6 mb-6 bg-white border-b border-slate-100 pb-4 sm:pb-0"
         >
-          {/* Left side: Back + Units */}
+          {/* LEFT SIDE: Back + Units */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
             {/* Back Button */}
             <button
               onClick={() => navigate("/")}
               className="inline-flex items-center justify-center gap-2 px-4 py-2 
-                   rounded-lg text-sm font-medium bg-slate-100 text-slate-700 
-                   hover:bg-slate-200 transition-colors w-full sm:w-auto
-                   focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/30"
+    rounded-lg text-sm font-medium bg-slate-100 text-slate-700 
+    hover:bg-slate-200 transition-colors 
+    whitespace-nowrap min-w-fit
+    focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/30"
             >
               ← Back
             </button>
 
             {/* Units Switcher */}
-            <div className="flex items-center gap-2 justify-between sm:justify-start">
-              <span className="text-xs text-slate-500">Units</span>
-              <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
+            <div className="w-full flex justify-end sm:justify-end items-center">
+              <span className="text-xs text-slate-500">Units :</span>
+              <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 m-2 shadow-sm">
                 <button
                   className={`px-3 py-1.5 rounded-md text-sm font-semibold ${
                     project.units === "metric"
@@ -210,35 +230,69 @@ export default function ProjectPage() {
             </div>
           </div>
 
-          {/* Right side: Save + Delete */}
-          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+          {/* RIGHT SIDE: Actions */}
+          <div className="flex flex-row justify-end items-center gap-3 w-full sm:w-auto flex-wrap sm:flex-nowrap">
+            {/* Save */}
             <button
               onClick={handleSaveProject}
               disabled={isSaving}
               className={`inline-flex justify-center items-center gap-2 px-5 py-2.5 
-                    rounded-lg text-sm font-semibold w-full sm:w-auto
-                    ${
-                      isSaving
-                        ? "bg-gray-400"
-                        : "bg-[#1E3A8A] hover:bg-[#17306f]"
-                    } 
-                    text-white transition-colors shadow-sm
-                    focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/30`}
+      rounded-lg text-sm font-semibold
+      ${isSaving ? "bg-gray-400" : "bg-[#1E3A8A] hover:bg-[#17306f]"} 
+      text-white transition-colors shadow-sm
+      focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/30`}
             >
               {isSaving ? "Saving..." : "Save Project"}
             </button>
 
-            {project.id && (
+            {/* Actions Dropdown */}
+            <div className="relative inline-block text-left">
               <button
-                onClick={() => setShowDeleteDialog(true)}
+                onClick={() => setShowActionsDropdown((prev) => !prev)}
                 className="inline-flex justify-center items-center gap-2 px-5 py-2.5 
-                     rounded-lg text-sm font-semibold w-full sm:w-auto
-                     bg-red-100 text-red-700 hover:bg-red-200 transition-colors
-                     focus:outline-none focus:ring-2 focus:ring-red-300"
+        rounded-lg text-sm font-semibold 
+        bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors
+        focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/30"
               >
-                Delete
+                Actions ▾
               </button>
-            )}
+
+              {showActionsDropdown && (
+                <div className="absolute right-0 mt-2 w-48 origin-top-right bg-white border border-slate-200 rounded-md shadow-lg z-50">
+                  <div className="py-1">
+                    <button
+                      onClick={() => {
+                        exportCSV(project);
+                        setShowActionsDropdown(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                    >
+                      Export CSV
+                    </button>
+                    <button
+                      onClick={() => {
+                        exportPDF(project);
+                        setShowActionsDropdown(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                    >
+                      Export PDF
+                    </button>
+                    {project.id && (
+                      <button
+                        onClick={() => {
+                          setShowDeleteDialog(true);
+                          setShowActionsDropdown(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-100"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

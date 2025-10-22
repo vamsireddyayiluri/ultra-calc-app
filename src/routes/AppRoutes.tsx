@@ -5,6 +5,7 @@ import ProtectedRoute from "./ProtectedRoute";
 import HomePage from "../pages/HomePage";
 import RedirectHandler from "./RedirectHandler";
 import ProjectPage from "../pages/ProjectPage";
+import ProfilePage from "../pages/ProfilePage";
 
 export default function AppRoutes() {
   const routes = [
@@ -30,6 +31,11 @@ export default function AppRoutes() {
       element: <ProtectedRoute />,
       children: [{ path: "/project/:id", element: <ProjectPage /> }],
     },
+    {
+      element: <ProtectedRoute />,
+      children: [{ path: "/profile", element: <ProfilePage /> }],
+    },
+
 
 
     // 404 fallback

@@ -61,9 +61,24 @@ export function computeRoom(
 
   // Infiltration & Ventilation
   const Volume = L * W * H;
-  const n = project.infiltrationACH ?? preset.ACH;
-  const Qinfil = 0.33 * n * Volume * dT;
-  const Qvent = (project.mechVent_m3_per_h ?? 0) * 0.34 * dT;
+  let Qinfil = 0;
+  let Qvent = 0;
+
+  if (project.region === "UK" || project.region === "EU") {
+    // UK/EU: EN12831-style ventilation & infiltration
+    const c_air = 0.34; // W·h/m³·K
+    const n = project.infiltrationACH ?? preset.ACH;
+    Qinfil = c_air * n * Volume * dT;
+    Qvent = (project.mechVent_m3_per_h ?? 0) * c_air * dT;
+  } else {
+    // Global / North American: generic combined formula
+    const c_air = 0.33;
+    const ACH = project.infiltrationACH ?? preset.ACH;
+    Qinfil = c_air * ACH * Volume * dT;
+    Qvent = 0;
+  }
+
+  const Qi = Qinfil + Qvent;
 
   // Psi allowance
   const Qpsi = (project.psiAllowance_W_per_K ?? 0) * dT;
@@ -72,18 +87,13 @@ export function computeRoom(
   const Qground = room.floorExposed && project.floorOnGround ? 0 : 0;
 
   // Base total
-  const Qbase = Qw + Qwin + Qdoor + Qc + Qf + Qinfil + Qvent + Qpsi + Qground;
+  const Qbase = Qw + Qwin + Qdoor + Qc + Qf + Qi + Qpsi + Qground;
 
-  // Apply safety & heat-up factors if standards are region-specific
+  // Apply safety & heat-up factors (region-based)
+  const applySafety = project.region === "UK" || project.region === "EU";
   const safety = 1 + (project.safetyFactorPct ?? 0) / 100;
   const heatUp = 1 + (project.heatUpFactorPct ?? 0) / 100;
-  const Q_design =
-    project.standardsMode &&
-    project.standardsMode !== "generic" &&
-    project.standardsMode !== "ASHRAE" &&
-    project.standardsMode !== "CSA_F280"
-      ? Qbase * safety * heatUp
-      : Qbase;
+  const Q_design = applySafety ? Qbase * safety * heatUp : Qbase;
 
   // Floor load & tubing sizing
   const q = Afloor > 0 ? Q_design / Afloor : 0;

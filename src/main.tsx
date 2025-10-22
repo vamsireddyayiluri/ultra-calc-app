@@ -2,7 +2,8 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App";
-
+import { ThemeProvider } from "@emotion/react";
+import theme from "./theme";
 
 const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || "";
 
@@ -11,7 +12,8 @@ const loadGoogleMaps = (() => {
   return () => {
     if (promise) return promise;
     promise = new Promise<void>((resolve, reject) => {
-      if ((window as any).google && (window as any).google.maps) return resolve();
+      if ((window as any).google && (window as any).google.maps)
+        return resolve();
 
       const script = document.createElement("script");
       script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_API_KEY}&libraries=places`;
@@ -31,7 +33,9 @@ loadGoogleMaps()
   .then(() => {
     createRoot(document.getElementById("root")!).render(
       <StrictMode>
-        <App />
+        <ThemeProvider theme={theme}>
+          <App />
+        </ThemeProvider>
       </StrictMode>
     );
   })

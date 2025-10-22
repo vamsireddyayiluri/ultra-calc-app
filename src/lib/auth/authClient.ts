@@ -19,11 +19,7 @@ import { NavigateFunction } from "react-router-dom";
 import { addDoc, collection } from "firebase/firestore";
 
 /** Register user and send verification email */
-export async function registerAction(
-  payload: any,
-  navigate: NavigateFunction,
-  setError: (err: string) => void
-) {
+export async function registerAction(payload: any, navigate: NavigateFunction) {
   const user = auth.currentUser;
 
   try {
@@ -69,11 +65,6 @@ export async function registerAction(
 
 export async function updateVerification(payload: any) {
   try {
-    const data = sessionStorage.getItem("selectedReservationData");
-    if (data) {
-      payload.reserveContainer = [JSON.parse(data).container];
-    }
-
     await addDoc(collection(db, "users"), payload);
 
     if (typeof window !== "undefined" && (window as any)._cio) {

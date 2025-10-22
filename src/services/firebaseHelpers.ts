@@ -11,6 +11,7 @@ import {
   getDocs,
   getDoc,
   deleteDoc,
+  updateDoc,
 } from "firebase/firestore";
 import { ProjectHeader, Room } from "../models/projectTypes";
 import { uid } from "../utils/uid";
@@ -33,14 +34,14 @@ export async function saveProjectTodb(project: any, showMessage: any) {
       // Update existing project
       const docRef = doc(db, "projects", project.id);
       await setDoc(docRef, project, { merge: true });
-      showMessage("Project updated successfully");
+      showMessage("Project updated successfully", "success");
       return project.id;
     } else {
       // Add new project
       project.id = uid();
       const colRef = collection(db, "projects");
       const docRef = await addDoc(colRef, project);
-      showMessage("Project saved successfully");
+      showMessage("Project saved successfully", "success");
       return docRef.id;
     }
   } catch (error) {
@@ -103,11 +104,11 @@ export async function deleteProjectFromDb(id: string, showMessage: any) {
     // (optional) security layer — could verify owner if needed
     await deleteDoc(docRef);
 
-    showMessage("Project deleted successfully");
+    showMessage("Project deleted successfully", "success");
     return true;
   } catch (error) {
     console.error("Error deleting project:", error);
-    showMessage("Failed to delete project");
+    showMessage("Failed to delete project", "error");
     return false;
   }
 }
@@ -128,6 +129,26 @@ export const getUserById = async (userId: string) => {
     }
   } catch (error) {
     console.error("Error fetching user:", error);
+    return null;
+  }
+};
+export const updateUserById = async (userId: string, data: any) => {
+  try {
+    const q = query(collection(db, "users"), where("userId", "==", userId));
+    const querySnapshot = await getDocs(q);
+
+    if (querySnapshot.empty) {
+      console.warn("No user found with userId:", userId);
+      return null;
+    }
+
+    // assuming userId is unique → update the first match
+    const docRef = querySnapshot.docs[0].ref;
+    await updateDoc(docRef, data);
+
+    return true;
+  } catch (error) {
+    console.error("Error updating user:", error);
     return null;
   }
 };

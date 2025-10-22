@@ -46,8 +46,6 @@ const STANDARDS_OPTIONS: { key: StandardsMode; label: string }[] = [
 export const ProjectForm: React.FC<ProjectFormProps> = ({
   project,
   onUpdate,
-  onApplyRegionDefaults,
-  onForceApplyRegionDefaults,
   appliedDefaults,
 }) => {
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -58,7 +56,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<any>(null);
-
+  console.log("ProjectForm render - project:", project);
   // 🧭 Auto-fetch location & set address only for NEW projects
   useEffect(() => {
     if (project.id) return; // skip for existing projects
@@ -89,7 +87,9 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
         }
       },
       () => {
-        setError("Unable to fetch your location. Please allow access.");
+        setError(
+          "Unable to fetch your location. Please allow location access."
+        );
       }
     );
   }, [project.id]);
@@ -213,14 +213,14 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
               value={project.region ?? ""}
               onChange={(e) => {
                 const region = e.target.value as RegionKey;
-                // Update project
-                onUpdate({ region });
+                console.log("Region changed to:", region);
 
-                // Optional: auto-apply defaults for this region
-                if (REGION_DEFAULTS[region]) {
-                  const defaults = REGION_DEFAULTS[region];
-                  onUpdate({ ...defaults });
-                }
+                // Combine region + defaults into a single update
+                const defaults = REGION_DEFAULTS[region] ?? {};
+                onUpdate({
+                  region,
+                  ...defaults,
+                });
               }}
             >
               <option value="">Select region</option>
@@ -237,6 +237,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
             <span className="font-medium">{standardsLabel}</span>
           </div>
         </Field>
+
         <Field label="Address">
           <input
             ref={inputRef} // ✅ important for autocomplete

@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import logo from "../../assets/logo.png";
-import { useAuth } from "../../contexts/AuthProvider"; // adjust path as needed
+import { useAuth } from "../../contexts/AuthProvider";
 import { signOut } from "firebase/auth";
 import { auth } from "../../firebase";
 import { UserType } from "../../models/projectTypes";
 import { getUserById } from "../../services/firebaseHelpers";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Home, LogOut, User } from "lucide-react";
 
 interface HeaderProps {
   title?: string;
@@ -16,25 +18,45 @@ export const Header: React.FC<HeaderProps> = ({
   subtitle = "Room-by-room heat loss calculation and project management for HVAC professionals.",
 }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [userData, setUserData] = useState<UserType>(null);
+  const [userData, setUserData] = useState<UserType | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const isHomePage =
+    location.pathname === "/" || location.pathname === "/dashboard";
+  const isProfilePage = location.pathname === "/profile";
+
+  // ✅ Fetch user details
   useEffect(() => {
-    // Fetch additional user data if needed
     const fetchUserData = async () => {
       if (user) {
-        // Simulate fetching user data
-
         const userData: any = await getUserById(user.uid);
-
         setUserData(userData);
       }
     };
     fetchUserData();
   }, [user]);
+
+  // ✅ Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      window.location.href = "/login"; // or use navigate()
+      navigate("/login");
     } catch (error) {
       console.error("Logout error:", error);
     }
@@ -45,24 +67,39 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="flex items-center justify-between px-6 py-3">
         {/* Left: Logo + Title */}
         <div className="flex items-center gap-3">
-          <img src={logo} alt="Ultra-Calc" className="w-32" />
+          <img
+            src={logo}
+            alt="Ultra-Calc"
+            className="w-32 cursor-pointer"
+            onClick={() => navigate("/dashboard")}
+          />
           <div className="leading-tight">
-            {" "}
             <h1 className="text-lg sm:text-2xl font-semibold text-[#0F1724]">
-              {" "}
-              {title}{" "}
-            </h1>{" "}
+              {title}
+            </h1>
             {subtitle && (
               <div className="text-sm text-[#4B5563]">{subtitle}</div>
-            )}{" "}
+            )}
           </div>
         </div>
 
-        {/* Right: User Menu */}
-        <div className="relative">
+        {/* Right: Icons */}
+        <div className="relative flex items-center gap-3" ref={dropdownRef}>
+          {/* ✅ Home icon (show only when NOT on home page) */}
+          {!isHomePage && (
+            <button
+              onClick={() => navigate("/dashboard")}
+              className="p-2 rounded-full hover:bg-[#FFEFD4] transition-colors"
+              title="Go to Home"
+            >
+              <Home className="w-6 h-6 text-[#0F1724]" />
+            </button>
+          )}
+
+          {/* ✅ Profile avatar — shown on all pages */}
           <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="flex items-center gap-2 focus:outline-none"
+            onClick={() => setMenuOpen((prev) => !prev)}
+            className="relative flex items-center gap-2 focus:outline-none"
           >
             {user?.photoURL ? (
               <img
@@ -77,17 +114,26 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </button>
 
+          {/* ✅ Dropdown Menu (below avatar, not overlapping) */}
           {menuOpen && (
-            <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-2">
-              <div className="px-4 py-2 text-sm text-gray-700 border-b border-gray-100">
-                <div className="font-medium">{userData?.name || "User"}</div>
-                <div className="text-xs text-gray-500">{user?.email}</div>
-              </div>
+            <div className="absolute right-0 top-[calc(100%+0.5rem)] w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-2">
+              {/* Hide Profile Settings when already on profile page */}
+              {!isProfilePage && (
+                <button
+                  onClick={() => {
+                    setMenuOpen(false);
+                    navigate("/profile");
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[#0F1724] hover:bg-[#FFF5E6]"
+                >
+                  <User size={16} /> Profile Settings
+                </button>
+              )}
               <button
                 onClick={handleLogout}
-                className="w-full text-left px-4 py-2 text-sm text-[#0F1724] hover:bg-[#FFF5E6]"
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[#0F1724] hover:bg-[#FFF5E6]"
               >
-                Logout
+                <LogOut size={16} /> Logout
               </button>
             </div>
           )}
