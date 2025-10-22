@@ -3,7 +3,6 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App";
 import { ThemeProvider } from "@emotion/react";
-import theme from "./theme";
 
 const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || "";
 
@@ -33,9 +32,7 @@ loadGoogleMaps()
   .then(() => {
     createRoot(document.getElementById("root")!).render(
       <StrictMode>
-        <ThemeProvider theme={theme}>
-          <App />
-        </ThemeProvider>
+        <App />
       </StrictMode>
     );
   })
