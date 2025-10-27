@@ -4,6 +4,8 @@ import {
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
   signOut,
+  onAuthStateChanged,
+  User,
 } from "firebase/auth";
 import db, { auth } from "../../firebase/index";
 import { NavigateFunction } from "react-router-dom";
@@ -93,4 +95,8 @@ export async function logoutUser() {
 /** Send password reset email */
 export async function sendResetEmail(email: string) {
   return await sendPasswordResetEmail(auth, email);
+}
+/** Observe auth state changes */
+export function observeAuth(callback: (user: User | null) => void) {
+  return onAuthStateChanged(auth, callback);
 }
