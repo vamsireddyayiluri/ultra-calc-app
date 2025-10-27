@@ -275,9 +275,14 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
             step="0.5"
             className="w-full border border-slate-300 rounded-md px-3 py-2"
             value={project.designIndoorC ?? ""}
-            onChange={(e) =>
-              onUpdate({ designIndoorC: Number(e.target.value) })
-            }
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === "" || val === "-") {
+                onUpdate({ designIndoorC: val === "" ? undefined : NaN });
+              } else {
+                onUpdate({ designIndoorC: Number(val) });
+              }
+            }}
           />
         </Field>
 
@@ -287,9 +292,14 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
             step="0.5"
             className="w-full border border-slate-300 rounded-md px-3 py-2"
             value={project.designOutdoorC ?? ""}
-            onChange={(e) =>
-              onUpdate({ designOutdoorC: Number(e.target.value) })
-            }
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === "" || val === "-") {
+                onUpdate({ designOutdoorC: val === "" ? undefined : NaN });
+              } else {
+                onUpdate({ designOutdoorC: Number(val) });
+              }
+            }}
           />
         </Field>
 

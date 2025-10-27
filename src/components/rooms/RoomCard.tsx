@@ -12,6 +12,13 @@ import {
   ft2_to_m2,
 } from "../../utils/conversions";
 
+// --- Safe parse utility ---
+function safeParseNumber(value: string): number | undefined {
+  if (value === "" || value === "-") return undefined;
+  const num = Number(value);
+  return isNaN(num) ? undefined : num;
+}
+
 interface RoomCardProps {
   room: Room;
   project: ProjectHeader;
@@ -103,10 +110,16 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             <input
               type="number"
               className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={toDisplayLength(room.length_m).toFixed(2)}
-              onChange={(e) =>
-                onUpdateRoom(room.id, { length_m: fromDisplayLength(+e.target.value) })
+              value={
+                room.length_m !== undefined ? toDisplayLength(room.length_m) : ""
               }
+              onChange={(e) => {
+                const parsed = safeParseNumber(e.target.value);
+                onUpdateRoom(room.id, {
+                  length_m:
+                    parsed !== undefined ? fromDisplayLength(parsed) : undefined,
+                });
+              }}
             />
           </Field>
 
@@ -114,10 +127,16 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             <input
               type="number"
               className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={toDisplayLength(room.width_m).toFixed(2)}
-              onChange={(e) =>
-                onUpdateRoom(room.id, { width_m: fromDisplayLength(+e.target.value) })
+              value={
+                room.width_m !== undefined ? toDisplayLength(room.width_m) : ""
               }
+              onChange={(e) => {
+                const parsed = safeParseNumber(e.target.value);
+                onUpdateRoom(room.id, {
+                  width_m:
+                    parsed !== undefined ? fromDisplayLength(parsed) : undefined,
+                });
+              }}
             />
           </Field>
 
@@ -125,10 +144,16 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             <input
               type="number"
               className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={toDisplayLength(room.height_m).toFixed(2)}
-              onChange={(e) =>
-                onUpdateRoom(room.id, { height_m: fromDisplayLength(+e.target.value) })
+              value={
+                room.height_m !== undefined ? toDisplayLength(room.height_m) : ""
               }
+              onChange={(e) => {
+                const parsed = safeParseNumber(e.target.value);
+                onUpdateRoom(room.id, {
+                  height_m:
+                    parsed !== undefined ? fromDisplayLength(parsed) : undefined,
+                });
+              }}
             />
           </Field>
 
@@ -136,10 +161,18 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             <input
               type="number"
               className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={toDisplayLength(room.exteriorLen_m).toFixed(2)}
-              onChange={(e) =>
-                onUpdateRoom(room.id, { exteriorLen_m: fromDisplayLength(+e.target.value) })
+              value={
+                room.exteriorLen_m !== undefined
+                  ? toDisplayLength(room.exteriorLen_m)
+                  : ""
               }
+              onChange={(e) => {
+                const parsed = safeParseNumber(e.target.value);
+                onUpdateRoom(room.id, {
+                  exteriorLen_m:
+                    parsed !== undefined ? fromDisplayLength(parsed) : undefined,
+                });
+              }}
             />
           </Field>
 
@@ -147,10 +180,18 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             <input
               type="number"
               className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={toDisplayArea(room.windowArea_m2).toFixed(2)}
-              onChange={(e) =>
-                onUpdateRoom(room.id, { windowArea_m2: fromDisplayArea(+e.target.value) })
+              value={
+                room.windowArea_m2 !== undefined
+                  ? toDisplayArea(room.windowArea_m2)
+                  : ""
               }
+              onChange={(e) => {
+                const parsed = safeParseNumber(e.target.value);
+                onUpdateRoom(room.id, {
+                  windowArea_m2:
+                    parsed !== undefined ? fromDisplayArea(parsed) : undefined,
+                });
+              }}
             />
           </Field>
 
@@ -158,10 +199,18 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             <input
               type="number"
               className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={toDisplayArea(room.doorArea_m2).toFixed(2)}
-              onChange={(e) =>
-                onUpdateRoom(room.id, { doorArea_m2: fromDisplayArea(+e.target.value) })
+              value={
+                room.doorArea_m2 !== undefined
+                  ? toDisplayArea(room.doorArea_m2)
+                  : ""
               }
+              onChange={(e) => {
+                const parsed = safeParseNumber(e.target.value);
+                onUpdateRoom(room.id, {
+                  doorArea_m2:
+                    parsed !== undefined ? fromDisplayArea(parsed) : undefined,
+                });
+              }}
             />
           </Field>
 
