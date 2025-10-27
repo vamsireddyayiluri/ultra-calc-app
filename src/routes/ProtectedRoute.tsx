@@ -22,7 +22,7 @@ export default function ProtectedRoute({
 
     // Guest routes (login/register/etc.)
     if (guestOnly) {
-      if (currentUser && currentUser.emailVerified) {
+      if (currentUser) {
         setRedirectPath("/dashboard");
       } else {
         setRedirectPath(null);
@@ -31,8 +31,6 @@ export default function ProtectedRoute({
       // Protected routes (dashboard/etc.)
       if (!currentUser) {
         setRedirectPath("/login");
-      } else if (!currentUser.emailVerified) {
-        setRedirectPath("/verify");
       } else {
         setRedirectPath(null);
       }

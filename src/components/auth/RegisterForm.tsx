@@ -5,21 +5,16 @@ import {
   InputAdornment,
   IconButton,
   CircularProgress,
-  MenuItem,
-  FormHelperText,
+  FormLabel,
 } from "@mui/material";
+import "react-phone-input-2/lib/style.css";
+import PhoneInput from "react-phone-input-2";
+
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import { useNavigate, Link } from "react-router-dom";
 import logo from "../../assets/logo.png";
 import { registerAction } from "../../lib/auth/authClient";
 import { useSnackbar } from "../../contexts/SnackbarProvider";
-
-// Supported regions
-const COUNTRY_CODES = [
-  { label: "US/Can (+1)", code: "+1", region: "US" },
-  { label: "UK (+44)", code: "+44", region: "UK" },
-  { label: "EU (+33)", code: "+33", region: "EU" },
-];
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -34,7 +29,6 @@ export default function RegisterForm() {
     address: "",
   });
 
-  const [countryCode, setCountryCode] = useState("+1");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -111,20 +105,10 @@ export default function RegisterForm() {
       }
     );
   }, []);
-
-  // --- VALIDATION LOGIC ---
-  const validatePhone = (number: string, code: string) => {
+  const validatePhoneNumber = (number: any) => {
     const cleaned = number.replace(/\D/g, "");
-    switch (code) {
-      case "+1": // US / CA
-        return cleaned.length === 10;
-      case "+44": // UK
-        return cleaned.length >= 10 && cleaned.length <= 11;
-      case "+33": // EU (France example)
-        return cleaned.length === 9;
-      default:
-        return false;
-    }
+    console.log("Cleaned phone number:", cleaned);
+    return cleaned.length >= 9 && cleaned.length <= 15;
   };
 
   const validate = () => {
@@ -145,8 +129,7 @@ export default function RegisterForm() {
       showMessage("Please enter a valid email address.", "error");
       return false;
     }
-
-    if (!validatePhone(userCell, countryCode)) {
+    if (!validatePhoneNumber(auth.userCell)) {
       showMessage("Please enter a valid phone number.", "error");
       return false;
     }
@@ -171,14 +154,15 @@ export default function RegisterForm() {
       const cleanedPhone = auth.userCell.replace(/\D/g, "");
       const payload = {
         name: auth.userName.trim(),
-        cell: `${countryCode}${cleanedPhone}`,
+        cell: `+${cleanedPhone}`,
         email: auth.userEmail.trim(),
         password: auth.userPassword,
         company: auth.company.trim(),
         address: auth.address.trim(),
       };
+
       console.log("Registration payload:", payload);
-      await registerAction(payload, navigate);
+      await registerAction(payload,showMessage, navigate);
     } catch (error: any) {
       const message = error?.message || "Registration failed.";
       console.error(error.message);
@@ -223,46 +207,28 @@ export default function RegisterForm() {
           />
 
           {/* Phone Input + Country Code */}
-          <TextField
-            label="Phone Number"
-            required
-            fullWidth
+          <FormLabel sx={{ fontSize: "0.775rem", color: "#6B7280", mb: 0.1 }}>
+            Phone Number :
+          </FormLabel>
+          <PhoneInput
+            country={"us"}
+            enableSearch
             value={auth.userCell}
-            onChange={(e) =>
-              setAuth({
-                ...auth,
-                userCell: e.target.value.replace(/[^\d\- ]/g, ""),
-              })
-            }
-            variant="outlined"
-            margin="dense"
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <TextField
-                    select
-                    value={countryCode}
-                    onChange={(e) => setCountryCode(e.target.value)}
-                    variant="standard"
-                    sx={{
-                      "& .MuiInputBase-root": {
-                        borderBottom: "none", // Remove underline
-                      },
-                      "& .MuiInput-underline:before, & .MuiInput-underline:after":
-                        {
-                          borderBottom: "none",
-                        },
-                      minWidth: 60,
-                    }}
-                  >
-                    {COUNTRY_CODES.map((c) => (
-                      <MenuItem key={c.code} value={c.code}>
-                        {c.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                </InputAdornment>
-              ),
+            onChange={(value) => {
+              const formattedValue = value.startsWith("+")
+                ? value
+                : `+${value}`;
+              setAuth({ ...auth, userCell: formattedValue });
+            }}
+            inputProps={{
+              name: "phone",
+              required: true,
+            }}
+            inputStyle={{
+              width: "100%",
+              height: "56px",
+              borderRadius: "8px",
+              fontSize: "16px",
             }}
           />
 
@@ -293,7 +259,7 @@ export default function RegisterForm() {
             inputRef={inputRef} // 👈 Google Places needs this
             value={auth.address}
             onChange={(e) => setAuth({ ...auth, address: e.target.value })}
-            placeholder="Street, City, State/Province, Postal Code"
+            placeholder="Street, City, State/Province, Zip/Postal Code"
             variant="outlined"
             margin="dense"
             error={Boolean(locationError)}

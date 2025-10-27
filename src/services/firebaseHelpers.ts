@@ -101,7 +101,6 @@ export async function deleteProjectFromDb(id: string, showMessage: any) {
     if (!id) return;
     const docRef = doc(db, "projects", id);
 
-    // (optional) security layer — could verify owner if needed
     await deleteDoc(docRef);
 
     showMessage("Project deleted successfully", "success");

@@ -14,7 +14,7 @@ export default function RedirectHandler() {
 
     const currentUser = auth.currentUser;
 
-    if (currentUser && currentUser.emailVerified) {
+    if (currentUser) {
       navigate("/dashboard", { replace: true });
     } else {
       navigate("/login", { replace: true });

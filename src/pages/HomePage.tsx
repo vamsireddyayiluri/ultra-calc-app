@@ -168,7 +168,7 @@ export default function HomePage() {
                   </p>
                 </div>
 
-                <div className="hidden sm:flex items-center gap-3">
+                <div className="sm:flex items-center gap-3">
                   <button
                     onClick={addProject}
                     className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-shadow transition-colors duration-150 shadow-sm bg-[#22D3EE] text-[#042029] hover:bg-[#18c6dd] focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/30"
