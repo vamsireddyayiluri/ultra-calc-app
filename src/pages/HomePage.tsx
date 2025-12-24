@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ProjectHeader, Room } from "../models/projectTypes";
+import { ProjectSettings, RoomInput } from "../models/projectTypes";
 import { ProjectCard } from "../components/projects/ProjectCard";
 import { ProjectEditor } from "../components/projects/ProjectEditor";
 import { useProjectSummary } from "../hooks/useProjectSummary";
@@ -40,7 +40,7 @@ export default function HomePage() {
 
   const addProject = () => navigate("/project");
 
-  const updateProject = (patch: Partial<ProjectHeader>) => {
+  const updateProject = (patch: Partial<ProjectSettings>) => {
     if (!activeProject) return;
     setProjects((prev) =>
       prev.map((p) => (p.id === activeProject.id ? { ...p, ...patch } : p))
@@ -48,7 +48,7 @@ export default function HomePage() {
     setActiveProject((prev) => (prev ? { ...prev, ...patch } : prev));
   };
 
-  const updateRoom = (id: string, patch: Partial<Room>) => {
+  const updateRoom = (id: string, patch: Partial<RoomInput>) => {
     if (!activeProject) return;
     const updatedRooms = activeProject.rooms.map((r) =>
       r.id === id ? { ...r, ...patch } : r
@@ -63,18 +63,21 @@ export default function HomePage() {
 
   const addRoom = () => {
     if (!activeProject) return;
-    const newRoom: Room = {
+    const newRoom: RoomInput = {
       id: uid(),
       name: `Room ${activeProject.rooms.length + 1}`,
-      length_m: 4,
-      width_m: 3,
-      height_m: 2.5,
-      exteriorLen_m: 4,
-      windowArea_m2: 1,
+      length_m: 0,
+      width_m: 0,
+      height_m: 0,
+      exteriorLen_m: 0,
+      windowArea_m2: 0,
       doorArea_m2: 0,
       ceilingExposed: false,
       floorExposed: false,
-      method: "drilled",
+      installMethod: "drilled",
+      setpointC: 0,
+      joistSpacing: "16in_400mm",
+      floorCover: "tile_stone",
     };
     const updatedRooms = [...activeProject.rooms, newRoom];
     setActiveProject({ ...activeProject, rooms: updatedRooms });
@@ -109,8 +112,11 @@ export default function HomePage() {
           key={i}
           className="rounded-xl bg-[#FFF5E6] p-0 shadow-md ring-1 ring-gray-100"
         >
-          <Skeleton variant="rectangular" height={180} sx={{ borderRadius: 2 }} />
-          
+          <Skeleton
+            variant="rectangular"
+            height={180}
+            sx={{ borderRadius: 2 }}
+          />
         </div>
       ))}
     </div>
@@ -147,7 +153,8 @@ export default function HomePage() {
               </h2>
               <p className="text-slate-500 max-w-xl text-center mb-6">
                 Create your first project to get started — room-by-room heat
-                loss, materials, and a clear summary for engineers and contractors.
+                loss, materials, and a clear summary for engineers and
+                contractors.
               </p>
               <button
                 onClick={() => navigate("/project")}
@@ -178,7 +185,9 @@ export default function HomePage() {
                 </div>
               </div>
 
-              {loading ? <ProjectSkeletons /> : (
+              {loading ? (
+                <ProjectSkeletons />
+              ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {projects.map((proj) => (
                     <div

@@ -16,7 +16,6 @@ const loadGoogleMaps = (() => {
 
       const script = document.createElement("script");
       script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_API_KEY}&libraries=places`;
-      console.log("Loading Google Maps API script:", script.src);
       script.async = true;
       script.defer = true;
       script.onload = () => resolve();

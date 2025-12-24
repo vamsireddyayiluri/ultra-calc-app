@@ -1,7 +1,7 @@
-import { RichRoom, Room } from "../models/projectTypes";
+import { RichRoom, RoomInput } from "../models/projectTypes";
 import { uid } from "../utils/uid";
 
-export function toRichRoom(simple: Room): RichRoom {
+export function toRichRoom(simple: RoomInput): RichRoom {
   return {
     name: simple.name,
     length: simple.length_m,
@@ -10,7 +10,7 @@ export function toRichRoom(simple: Room): RichRoom {
     setpoint: 21, // Default comfort temp
     ceilingExposed: simple.ceilingExposed,
     floorExposed: simple.floorExposed,
-    method: simple.method,
+    installMethod: simple.installMethod,
     spacingOverrideIn: null,
     sides: [
       {
@@ -22,7 +22,7 @@ export function toRichRoom(simple: Room): RichRoom {
     ],
   };
 }
-export function fromRichRoom(rich: RichRoom): Room {
+export function fromRichRoom(rich: RichRoom): RoomInput {
   return {
     id: uid(),
     name: rich.name,
@@ -34,6 +34,6 @@ export function fromRichRoom(rich: RichRoom): Room {
     doorArea_m2: 0,
     ceilingExposed: rich.ceilingExposed,
     floorExposed: rich.floorExposed,
-    method: rich.method,
+    installMethod: rich.installMethod,
   };
 }

@@ -1,7 +1,7 @@
 // data/regionDefaults.ts
-import { RegionDefaults, RegionKey } from "../models/projectTypes";
+import { RegionDefaults, Region } from "../models/projectTypes";
 
-export const REGION_DEFAULTS: Record<RegionKey, RegionDefaults> = {
+export const REGION_DEFAULTS: Record<Region, RegionDefaults> = {
   UK: {
     standardsMode: "BS_EN_12831",
     safetyFactorPct: 12.5,

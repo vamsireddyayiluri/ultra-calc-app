@@ -3,40 +3,35 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { SectionCard } from "../layout/SectionCard";
 import { Field } from "./Field";
 import type {
-  ProjectHeader,
-  RegionKey,
+  ProjectSettings,
+  Region,
   StandardsMode,
-  PeriodKey,
+  InsulationPeriodKey,
+  GlazingType,
+  MaterialUValues,
 } from "../../models/projectTypes";
 import { REGION_DEFAULTS } from "../../data/regionDefaults";
+import { getDefaultUValues } from "../../utils/uDefaults";
 
-/* Props:
-   - project: full project object (may already include region/default fields)
-   - onUpdate: update partial project fields
-   - onApplyRegionDefaults: optional - parent can force-apply defaults when called
-*/
 interface ProjectFormProps {
-  project: ProjectHeader & Partial<Record<string, any>>;
-  onUpdate: (patch: Partial<ProjectHeader & Record<string, any>>) => void;
-  onApplyRegionDefaults?: (region: RegionKey) => void; // smart apply (optional)
-  onForceApplyRegionDefaults?: (region: RegionKey) => void; // force overwrite (optional)
-  // optionally the parent can pass the last-applied defaults to indicate custom fields
+  project: ProjectSettings;
+  onUpdate: (patch: Partial<ProjectSettings>) => void;
   appliedDefaults?: Partial<Record<string, any>>;
 }
 
-const REGION_OPTIONS: { key: RegionKey; label: string }[] = [
+const REGION_OPTIONS: { key: Region; label: string }[] = [
   { key: "UK", label: "United Kingdom" },
   { key: "US", label: "United States" },
   { key: "EU", label: "European Union" },
   { key: "CA", label: "Canada" },
 ];
+
 declare global {
   interface Window {
     google: any;
   }
 }
 const STANDARDS_OPTIONS: { key: StandardsMode; label: string }[] = [
-  { key: "generic", label: "Generic" },
   { key: "BS_EN_12831", label: "BS EN 12831" },
   { key: "ASHRAE", label: "ASHRAE" },
   { key: "EN_ISO_13790", label: "EN / ISO 13790" },
@@ -49,18 +44,16 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
   appliedDefaults,
 }) => {
   const [advancedOpen, setAdvancedOpen] = useState(false);
-
-  // Determine a friendly badge text
-  const regionLabel = project.region ? project.region : "Not selected";
-  const standardsLabel = project.standardsMode ?? "generic";
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<any>(null);
-  console.log("ProjectForm render - project:", project);
-  // 🧭 Auto-fetch location & set address only for NEW projects
-  useEffect(() => {
-    if (project.id) return; // skip for existing projects
 
+  const regionLabel = project.region ? project.region : "Canada";
+  const standardsLabel = project.standardsMode ?? "BS EN 12831";
+
+  // === Auto-detect location ===
+  useEffect(() => {
+    if (project.id) return;
     if (!("geolocation" in navigator)) {
       setError("Geolocation not supported by your browser.");
       return;
@@ -69,7 +62,6 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude, longitude } = pos.coords;
-
         try {
           const res = await fetch(
             `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${
@@ -94,11 +86,8 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
     );
   }, [project.id]);
 
-  // 📍 Setup Google Autocomplete (for manual search)
+  // === Google Places Autocomplete ===
   useEffect(() => {
-    // if (project.id) return; // skip for existing projects
-
-    // ✅ Setup Google Autocomplete when script is ready
     const initAutocomplete = () => {
       if (!window.google || !inputRef.current) return;
 
@@ -106,12 +95,10 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
         fields: ["geometry", "formatted_address"],
         types: ["address"],
       };
-
       autocompleteRef.current = new window.google.maps.places.Autocomplete(
         inputRef.current,
         options
       );
-
       autocompleteRef.current.addListener("place_changed", () => {
         const place = autocompleteRef.current.getPlace();
         if (!place.geometry) {
@@ -124,7 +111,6 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
       });
     };
 
-    // Wait until script loads if not yet available
     if (window.google && window.google.maps) {
       initAutocomplete();
     } else {
@@ -138,32 +124,25 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
     }
   }, [project.id]);
 
-  // Standards options can be filtered or prioritized by region if desired
   const standardsForRegion = useMemo(() => {
-    if (project.region === "UK") {
-      return STANDARDS_OPTIONS; // we could prioritize BS_EN_12831
-    }
-    // default: return whole list
     return STANDARDS_OPTIONS;
   }, [project.region]);
 
-  // helper to detect if a field differs from applied defaults (if parent provided them)
   const isCustom = (k: string) => {
     if (!appliedDefaults) return false;
     return (
       typeof appliedDefaults[k] !== "undefined" &&
-      project[k] !== appliedDefaults[k]
+      project[k as keyof ProjectSettings] !== appliedDefaults[k]
     );
   };
 
-  // Small field renderer for numeric advanced fields
   const numericField = (
     label: string,
-    fieldKey: keyof ProjectHeader & string,
+    fieldKey: keyof ProjectSettings,
     value: number | undefined,
     opts?: { min?: number; max?: number; step?: number; hint?: string }
   ) => (
-    <Field label={`${label}${isCustom(fieldKey) ? " (custom)" : ""}`}>
+    <Field label={`${label}${isCustom(fieldKey as string) ? " (custom)" : ""}`}>
       <input
         type="number"
         className="w-full border border-slate-300 rounded-md px-3 py-2"
@@ -173,14 +152,11 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
         step={opts?.step ?? 0.1}
         onChange={(e) => {
           const v = e.target.value === "" ? undefined : Number(e.target.value);
-          onUpdate({ [fieldKey]: v } as Partial<ProjectHeader>);
+          onUpdate({ [fieldKey]: v } as Partial<ProjectSettings>);
         }}
-        aria-describedby={`${fieldKey}-help`}
       />
       {opts?.hint && (
-        <div id={`${fieldKey}-help`} className="text-xs text-slate-500 mt-1">
-          {opts.hint}
-        </div>
+        <div className="text-xs text-slate-500 mt-1">{opts.hint}</div>
       )}
     </Field>
   );
@@ -190,7 +166,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Field label="Project Name">
           <input
-            className="w-full border border-slate-300 rounded-md px-3 py-2 cursor-text"
+            className="w-full border border-slate-300 rounded-md px-3 py-2"
             value={project.name ?? ""}
             onChange={(e) => onUpdate({ name: e.target.value })}
             placeholder="e.g., Smith Residence – Main Floor"
@@ -206,32 +182,29 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
           />
         </Field>
 
-        {/* Region & Standards — new controls */}
+        {/* Region */}
         <Field label="Region">
-          <div className="flex gap-2 items-center">
-            <select
-              value={project.region ?? ""}
-              onChange={(e) => {
-                const region = e.target.value as RegionKey;
-                console.log("Region changed to:", region);
-
-                // Combine region + defaults into a single update
-                const defaults = REGION_DEFAULTS[region] ?? {};
-                onUpdate({
-                  region,
-                  ...defaults,
-                });
-              }}
-            >
-              <option value="">Select region</option>
-              {REGION_OPTIONS.map((o) => (
-                <option key={o.key} value={o.key}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
+          <select
+            value={project.region ?? ""}
+            onChange={(e) => {
+              const region = e.target.value as Region;
+              const updatedDefaults = getDefaultUValues({ ...project, region });
+              const defaults = REGION_DEFAULTS[region] ?? {};
+              onUpdate({
+                region,
+                ...defaults,
+                customUOverrides: updatedDefaults,
+              });
+            }}
+            className="w-full border border-slate-300 rounded-md px-3 py-2"
+          >
+            <option value="">Select region</option>
+            {REGION_OPTIONS.map((o) => (
+              <option key={o.key} value={o.key}>
+                {o.label}
+              </option>
+            ))}
+          </select>
           <div className="text-xs text-slate-500 mt-1">
             Using: <span className="font-semibold">{regionLabel}</span> —{" "}
             <span className="font-medium">{standardsLabel}</span>
@@ -240,11 +213,11 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
 
         <Field label="Address">
           <input
-            ref={inputRef} // ✅ important for autocomplete
+            ref={inputRef}
             className="w-full border border-slate-300 rounded-md px-3 py-2"
             defaultValue={project.address ?? ""}
             onChange={(e) => onUpdate({ address: e.target.value })}
-            placeholder="Street, City, State/Province, Postal Code"
+            placeholder="Street, City, State/Province, Zip/Postal Code"
           />
           {error && <div className="text-xs text-red-500 mt-1">{error}</div>}
         </Field>
@@ -263,53 +236,83 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
               </option>
             ))}
           </select>
-          <div className="text-xs text-slate-500 mt-1">
-            Choose a standards mode to apply design multipliers and rules.
-          </div>
         </Field>
 
-        {/* Design Temperature controls (kept here; unchanged logic) */}
-        <Field label={`Indoor (${project.units === "metric" ? "°C" : "°F"})`}>
+        {/* Design Temperatures */}
+        <Field
+          label={`Indoor Design Temperature (${project.unitMode === "metric" ? "°C" : "°F"})`}
+        >
           <input
             type="number"
             step="0.5"
             className="w-full border border-slate-300 rounded-md px-3 py-2"
-            value={project.designIndoorC ?? ""}
+            value={
+              project.unitMode === "metric"
+                ? project.indoorTempC ?? ""
+                : project.indoorTempC !== undefined
+                ? (project.indoorTempC * 9) / 5 + 32 // °C → °F
+                : ""
+            }
             onChange={(e) => {
               const val = e.target.value;
-              if (val === "" || val === "-") {
-                onUpdate({ designIndoorC: val === "" ? undefined : NaN });
-              } else {
-                onUpdate({ designIndoorC: Number(val) });
+              if (val === "") {
+                onUpdate({ indoorTempC: undefined });
+                return;
               }
+
+              const num = Number(val);
+              const tempC =
+                project.unitMode === "metric" ? num : ((num - 32) * 5) / 9; // °F → °C
+              onUpdate({ indoorTempC: tempC });
             }}
           />
         </Field>
 
-        <Field label={`Outdoor (${project.units === "metric" ? "°C" : "°F"})`}>
+        <Field
+          label={`Outdoor Design Temperature (${project.unitMode === "metric" ? "°C" : "°F"})`}
+        >
           <input
             type="number"
             step="0.5"
             className="w-full border border-slate-300 rounded-md px-3 py-2"
-            value={project.designOutdoorC ?? ""}
+            value={
+              project.unitMode === "metric"
+                ? project.outdoorTempC ?? ""
+                : project.outdoorTempC !== undefined
+                ? (project.outdoorTempC * 9) / 5 + 32 // °C → °F
+                : ""
+            }
             onChange={(e) => {
               const val = e.target.value;
-              if (val === "" || val === "-") {
-                onUpdate({ designOutdoorC: val === "" ? undefined : NaN });
-              } else {
-                onUpdate({ designOutdoorC: Number(val) });
+              if (val === "") {
+                onUpdate({ outdoorTempC: undefined });
+                return;
               }
+
+              const num = Number(val);
+              const tempC =
+                project.unitMode === "metric" ? num : ((num - 32) * 5) / 9; // °F → °C
+              onUpdate({ outdoorTempC: tempC });
             }}
           />
         </Field>
 
-        {/* Insulation Period */}
         {/* Insulation Period */}
         <Field label="Insulation Period">
           <select
             className="w-full border border-slate-300 rounded-md px-3 py-2"
-            value={project.period ?? ""}
-            onChange={(e) => onUpdate({ period: e.target.value as PeriodKey })}
+            value={project.insulationPeriod ?? ""}
+            onChange={(e) => {
+              const insulationPeriod = e.target.value as InsulationPeriodKey;
+              const updatedDefaults = getDefaultUValues({
+                ...project,
+                insulationPeriod,
+              });
+              onUpdate({
+                insulationPeriod,
+                customUOverrides: updatedDefaults,
+              });
+            }}
           >
             <option value="pre1980">Pre-1980 (Poor)</option>
             <option value="y1980_2000">1980–2000 (Average)</option>
@@ -318,108 +321,160 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
           </select>
         </Field>
 
-        {/* Advanced Defaults — collapsible */}
-        <div className="mt-4">
-          <div className="mt-4">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-              <h3 className="text-sm font-medium text-slate-700">
-                Advanced Defaults
-              </h3>
-              <button
-                type="button"
-                className="text-xs font-medium text-teal-600 hover:text-teal-700 transition-colors"
-                onClick={() => setAdvancedOpen((s) => !s)}
-                aria-expanded={advancedOpen}
-              >
-                {advancedOpen ? "Hide" : "Show"}
-              </button>
+        <Field label="Glazing Type">
+          <select
+            className="w-full border border-slate-300 rounded-md px-3 py-2"
+            value={project.glazing ?? ""}
+            onChange={(e) =>
+              onUpdate({ glazing: e.target.value as GlazingType })
+            }
+          >
+            <option value="">Select</option>
+            <option value="single">Single</option>
+            <option value="double">Double</option>
+            <option value="triple">Triple</option>
+          </select>
+        </Field>
+      </div>
+
+      {/* Advanced Section */}
+      <div className="mt-6">
+        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+          <h3 className="text-sm font-medium text-slate-700">
+            Advanced Defaults
+          </h3>
+          <button
+            type="button"
+            className=" font-medium text-teal-600 hover:text-teal-700 transition-colors"
+            onClick={() => setAdvancedOpen((s) => !s)}
+          >
+            {advancedOpen ? "Hide" : "Show"}
+          </button>
+        </div>
+
+        {advancedOpen && (
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+            {numericField(
+              "Safety Factor (%)",
+              "safetyFactorPct",
+              project.safetyFactorPct,
+              {
+                min: 0,
+                max: 100,
+                step: 0.1,
+                hint: "Typical 10–15%",
+              }
+            )}
+            {numericField(
+              "Heat-up Factor (%)",
+              "heatUpFactorPct",
+              project.heatUpFactorPct,
+              {
+                min: 0,
+                max: 200,
+                step: 0.1,
+                hint: "Warm-up multiplier (typical 20–30%)",
+              }
+            )}
+            {numericField(
+              "Psi allowance (W/K)",
+              "psiAllowance_W_per_K",
+              project.psiAllowance_W_per_K ?? project.psiThermalBridge_W_per_K,
+              {
+                min: 0,
+                max: 1,
+                step: 0.005,
+                hint: "Thermal bridging allowance",
+              }
+            )}
+            {numericField(
+              "Mechanical Vent. (m³/h)",
+              "mechVent_m3_per_h",
+              project.mechVent_m3_per_h,
+              {
+                min: 0,
+                max: 5,
+                step: 0.01,
+                hint: "Ventilation rate (m³/h)",
+              }
+            )}
+            {numericField(
+              "Infiltration (ACH)",
+              "infiltrationACH",
+              project.infiltrationACH,
+              {
+                min: 0,
+                max: 5,
+                step: 0.01,
+                hint: "Typical 0.2–0.5",
+              }
+            )}
+
+            <Field
+              label={`Floor On Ground ${
+                isCustom("floorOnGround" as any) ? "(custom)" : ""
+              }`}
+            >
+              <div className="flex items-center gap-2 mt-1">
+                <input
+                  type="checkbox"
+                  checked={Boolean(project.floorOnGround)}
+                  onChange={(e) =>
+                    onUpdate({ floorOnGround: e.target.checked })
+                  }
+                  className="h-4 w-4 accent-teal-600 cursor-pointer"
+                />
+                <span className="text-sm text-slate-700 select-none">
+                  Yes — floor on ground
+                </span>
+              </div>
+            </Field>
+
+            {/* Custom U-values */}
+            <div className="md:col-span-3 border-t border-slate-200 pt-3 mt-2">
+              <h4 className="text-sm font-medium text-slate-700 mb-2">
+                Custom U-Values (W/m²·K)
+              </h4>
+
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                {(
+                  Object.keys({
+                    wall: 0,
+                    window: 0,
+                    door: 0,
+                    roof: 0,
+                    floor: 0,
+                  }) as (keyof MaterialUValues)[]
+                ).map((key) => (
+                  <Field
+                    key={key}
+                    label={`${key[0].toUpperCase() + key.slice(1)} U-Value`}
+                  >
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="w-full border border-slate-300 rounded-md px-3 py-2"
+                      value={project.customUOverrides?.[key] ?? ""}
+                      onChange={(e) => {
+                        const val =
+                          e.target.value === ""
+                            ? undefined
+                            : Number(e.target.value);
+                        onUpdate({
+                          customUOverrides: {
+                            ...project.customUOverrides,
+                            [key]: val,
+                          },
+                        });
+                      }}
+                    />
+                  </Field>
+                ))}
+              </div>
             </div>
           </div>
-
-          {advancedOpen && (
-            <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
-              {numericField(
-                "Safety Factor (%)",
-                "safetyFactorPct",
-                project.safetyFactorPct as number | undefined,
-                {
-                  min: 0,
-                  max: 100,
-                  step: 0.1,
-                  hint: "Typical 10–15%",
-                }
-              )}
-
-              {numericField(
-                "Heat-up Factor (%)",
-                "heatUpFactorPct",
-                project.heatUpFactorPct as number | undefined,
-                {
-                  min: 0,
-                  max: 200,
-                  step: 0.1,
-                  hint: "Warm-up multiplier (typical 20–30%)",
-                }
-              )}
-
-              {numericField(
-                "Psi allowance (W/K)",
-                "psiAllowance_W_per_K",
-                project.psiAllowance_W_per_K as number | undefined,
-                {
-                  min: 0,
-                  max: 1,
-                  step: 0.005,
-                  hint: "Thermal bridging allowance (W/K)",
-                }
-              )}
-
-              {numericField(
-                "Mechanical Vent. (m³/h)",
-                "mechVent_m3_per_h",
-                project.mechVent_m3_per_h as number | undefined,
-                {
-                  min: 0,
-                  max: 5,
-                  step: 0.01,
-                  hint: "m³/h per m² or system-specific (region-dependent)",
-                }
-              )}
-
-              {numericField(
-                "Infiltration (ACH)",
-                "infiltrationACH",
-                project.infiltrationACH as number | undefined,
-                {
-                  min: 0,
-                  max: 5,
-                  step: 0.01,
-                  hint: "Air changes per hour (typical 0.2–0.5)",
-                }
-              )}
-
-              <Field
-                label={`Floor On Ground ${
-                  isCustom("floorOnGround" as any) ? "(custom)" : ""
-                }`}
-              >
-                <div className="flex items-center gap-2 mt-1">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(project.floorOnGround)}
-                    onChange={(e) =>
-                      onUpdate({ floorOnGround: e.target.checked })
-                    }
-                    className="h-4 w-4 accent-teal-600 cursor-pointer"
-                  />
-                  <span className="text-sm text-slate-700 select-none">
-                    Yes — floor on ground
-                  </span>
-                </div>
-              </Field>
-            </div>
-          )}
-        </div>
+        )}
       </div>
     </SectionCard>
   );

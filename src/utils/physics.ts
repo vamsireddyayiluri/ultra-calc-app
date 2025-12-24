@@ -1,14 +1,23 @@
 import { WATER_TABLE } from "../models/waterTable";
-import { PRESETS_UK, PRESETS_GLOBAL } from "../models/presets";
 import {
-  Room,
-  PeriodKey,
+  FLOOR_COVER_R,
+  GENERIC_PRESETS,
+  GLAZING_WINDOW_U,
+  MAX_LOOP_M,
+  SPACING_TABLE,
+  UK_PRESETS,
+} from "../models/presets";
+import {
   RoomResults,
-  RegionKey,
-  ProjectHeader,
+  RoomInput,
+  ProjectSettings,
+  MaterialUValues,
 } from "../models/projectTypes";
 import { m2_to_ft2, m_to_ft } from "./conversions";
 
+// ------------------------------------------------------------
+// 1. Interpolation from empirical water temperature table
+// ------------------------------------------------------------
 export function interpWaterC(q_Wm2: number): number {
   const a = WATER_TABLE;
   if (q_Wm2 <= a[0].wpm2) return a[0].c;
@@ -23,124 +32,280 @@ export function interpWaterC(q_Wm2: number): number {
   }
   return a[a.length - 1].c;
 }
-function getPreset(
-  region: RegionKey,
-  period: PeriodKey,
-  custom?: ProjectHeader["customU"]
-) {
-  const base = (
-    region === "UK" || region === "EU" ? PRESETS_UK : PRESETS_GLOBAL
-  )[period];
-  return { ...base, U: { ...base.U, ...(custom || {}) } };
+
+// ------------------------------------------------------------
+// 2. Preset and U-value Merging
+// ------------------------------------------------------------
+function getWindowUFromGlazing(
+  settings: ProjectSettings,
+  fallback: number
+): number {
+  if (settings.glazing) return GLAZING_WINDOW_U[settings.glazing] ?? fallback;
+  return fallback;
 }
 
-export function computeRoom(
-  room: Room,
-  periodKey: PeriodKey,
-  project: ProjectHeader
-): RoomResults {
-  const preset = getPreset(project.region, periodKey, project.customU);
-  const dT = project.designIndoorC - project.designOutdoorC;
+function mergeUValues(settings: ProjectSettings): {
+  U: MaterialUValues;
+  achOrN: number;
+} {
+  const period = settings.insulationPeriod ?? "custom";
+  const base = { ...GENERIC_PRESETS[period] };
+  console.log("base", base);
+  const windowUFromGlazing = getWindowUFromGlazing(settings, base.U.window);
+  base.U.window = windowUFromGlazing;
 
-  const L = room.length_m;
-  const W = room.width_m;
-  const H = room.height_m;
-  const Afloor = L * W;
-  const Perim = 2 * (L + W);
-  const wallArea = Math.max(
-    0,
-    room.exteriorLen_m * H - (room.windowArea_m2 + room.doorArea_m2)
-  );
-
-  // Conduction
-  const Qw = preset.U.wall * wallArea * dT;
-  const Qwin = preset.U.window * room.windowArea_m2 * dT;
-  const Qdoor = preset.U.door * room.doorArea_m2 * dT;
-  const Qc = room.ceilingExposed ? preset.U.ceiling * Afloor * dT : 0;
-  const Qf = room.floorExposed ? preset.U.floor * Afloor * dT : 0;
-
-  // Infiltration & Ventilation
-  const Volume = L * W * H;
-  let Qinfil = 0;
-  let Qvent = 0;
-
-  if (project.region === "UK" || project.region === "EU") {
-    // UK/EU: EN12831-style ventilation & infiltration
-    const c_air = 0.34; // W·h/m³·K
-    const n = project.infiltrationACH ?? preset.ACH;
-    Qinfil = c_air * n * Volume * dT;
-    Qvent = (project.mechVent_m3_per_h ?? 0) * c_air * dT;
-  } else {
-    // Global / North American: generic combined formula
-    const c_air = 0.33;
-    const ACH = project.infiltrationACH ?? preset.ACH;
-    Qinfil = c_air * ACH * Volume * dT;
-    Qvent = 0;
+  if (settings.region === "UK" && settings.standardsMode === "BS_EN_12831") {
+    const uk = UK_PRESETS[period];
+    if (uk?.U) {
+      base.U = { ...base.U, ...uk.U, window: windowUFromGlazing };
+    }
+    const n = base.ACH;
+    const U = settings.customUOverrides
+      ? { ...base.U, ...settings.customUOverrides }
+      : base.U;
+    return { U, achOrN: n };
   }
 
-  const Qi = Qinfil + Qvent;
+  const ach = base.ACH;
+  const U = settings.customUOverrides
+    ? { ...base.U, ...settings.customUOverrides }
+    : base.U;
+  return { U, achOrN: ach };
+}
 
-  // Psi allowance
-  const Qpsi = (project.psiAllowance_W_per_K ?? 0) * dT;
+// ------------------------------------------------------------
+// 3. Helpers for geometry
+// ------------------------------------------------------------
+export function roomArea_m2(r: RoomInput): number {
+  return r.length_m * r.width_m;
+}
+export function roomPerimeter_m(r: RoomInput): number {
+  return 2 * (r.length_m + r.width_m);
+}
+export function roomVolume_m3(r: RoomInput): number {
+  return roomArea_m2(r) * r.height_m;
+}
 
-  // Ground/floor loss (placeholder)
-  const Qground = room.floorExposed && project.floorOnGround ? 0 : 0;
+// ------------------------------------------------------------
+// 4. Heat loss calculations (restored wall/window/door logic)
+// ------------------------------------------------------------
+function fabricLoss_W(
+  r: RoomInput,
+  uvals: MaterialUValues,
+  dT: number
+): number {
+  const L = r.length_m;
+  const W = r.width_m;
+  const H = r.height_m;
+  const Afloor = L * W;
+  const wallArea = Math.max(
+    0,
+    (r.exteriorLen_m ?? 0) * H - (r.windowArea_m2 ?? 0) - (r.doorArea_m2 ?? 0)
+  );
 
-  // Base total
-  const Qbase = Qw + Qwin + Qdoor + Qc + Qf + Qi + Qpsi + Qground;
+  const Qw = uvals.wall * wallArea * dT;
+  const Qwin = uvals.window * (r.windowArea_m2 ?? 0) * dT;
+  const Qdoor = uvals.door * (r.doorArea_m2 ?? 0) * dT;
+  const Qc = r.ceilingExposed ? uvals.roof * Afloor * dT : 0;
+  const Qf = r.floorExposed ? uvals.floor * Afloor * dT : 0;
 
-  // Apply safety & heat-up factors (region-based)
-  const applySafety = project.region === "UK" || project.region === "EU";
-  const safety = 1 + (project.safetyFactorPct ?? 0) / 100;
-  const heatUp = 1 + (project.heatUpFactorPct ?? 0) / 100;
-  const Q_design = applySafety ? Qbase * safety * heatUp : Qbase;
+  return Qw + Qwin + Qdoor + Qc + Qf;
+}
 
-  // Floor load & tubing sizing
-  const q = Afloor > 0 ? Q_design / Afloor : 0;
-  const spacing_in = q <= 50 ? 16 : q <= 145 ? 12 : 12;
-  const tubingSize: '1/2"' | '3/4"' = q > 145 ? '3/4"' : '1/2"';
+// ------------------------------------------------------------
+// 5. Ventilation / Infiltration
+// ------------------------------------------------------------
+function ventilationLoss_W(
+  r: RoomInput,
+  settings: ProjectSettings,
+  achOrN: number,
+  dT: number
+): number {
+  const V = roomVolume_m3(r);
+  if (settings.region === "UK" || settings.region === "EU") {
+    // Keep old logic: EN12831-style
+    const c_air = 0.34;
+    const Qinfil = c_air * achOrN * V * dT;
+    const Qvent = (settings.mechVent_m3_per_h ?? 0) * c_air * dT;
+    return Qinfil + Qvent;
+  } else {
+    const c_air = 0.33;
+    const Q = c_air * achOrN * V * dT;
+    return Q;
+  }
+}
 
-  // Tubing length estimate
-  const Afloor_ft2 = m2_to_ft2(Afloor);
-  const Perim_ft = m_to_ft(Perim);
-  const Sft = spacing_in / 12; // ft between passes
+// ------------------------------------------------------------
+// 6. Thermal bridges & ground loss
+// ------------------------------------------------------------
+function thermalBridge_W(settings: ProjectSettings, dT: number): number {
+  return (settings.psiThermalBridge_W_per_K ?? 0) * dT;
+}
+function groundLoss_W(
+  settings: ProjectSettings,
+  r: RoomInput,
+  dT: number
+): number {
+  if (!settings.floorOnGround) return 0;
+  const A = roomArea_m2(r);
+  return 0.1 * A * dT;
+}
+
+// ------------------------------------------------------------
+// 7. Safety & heat-up factors (UK or EU)
+// ------------------------------------------------------------
+function applySafetyFactors(q_W: number, settings: ProjectSettings): number {
+  if (!(settings.region === "UK" || settings.region === "EU")) return q_W;
+  const safety = 1 + (settings.safetyFactorPct ?? 0) / 100;
+  const heatUp = 1 + (settings.heatUpFactorPct ?? 0) / 100;
+  return q_W * safety * heatUp;
+}
+
+// ------------------------------------------------------------
+// 8. Load to spacing (same as new version)
+// ------------------------------------------------------------
+function loadToSpacing(load_W_per_m2: number): {
+  spacing_in: number;
+  tubeSize_in: 0.5 | 0.75;
+} {
+  for (const row of SPACING_TABLE) {
+    if (load_W_per_m2 <= row.maxLoad)
+      return { spacing_in: row.spacing_in, tubeSize_in: row.tubeSize_in };
+  }
+  return { spacing_in: 12, tubeSize_in: 0.75 };
+}
+
+// ------------------------------------------------------------
+// 9. Imperial material estimation (restored old formula)
+// ------------------------------------------------------------
+function materialEstimationImperial(
+  r: RoomInput,
+  spacing_in: number,
+  tubeSize_in: 0.5 | 0.75
+): {
+  Lft: number;
+  fins: number;
+  clips: number;
+  loops: number;
+  perLoop_ft: number;
+} {
+  const Afloor_ft2 = m2_to_ft2(roomArea_m2(r));
+  const Perim_ft = m_to_ft(roomPerimeter_m(r));
+  const Sft = spacing_in / 12;
   const straight = Afloor_ft2 / Math.max(0.1, Sft);
   const turns = 0.1 * straight;
   const perimAllowance = 0.5 * Perim_ft;
   const Lft = straight + turns + perimAllowance;
 
-  // Ultra-Fins / Clips
   const fins = Math.ceil(Lft * 1.2);
   const clips = Math.ceil(Lft / 2.5);
 
-  // Loop limits
-  const loopMax = tubingSize === '3/4"' ? 400 : 300;
+  const loopMax = tubeSize_in === 0.75 ? 400 : 300;
   const loops = Math.max(1, Math.ceil(Lft / loopMax));
-  const perLoop = Math.round(Lft / loops);
+  const perLoop_ft = Math.round(Lft / loops);
+  return { Lft, fins, clips, loops, perLoop_ft };
+}
 
-  const waterC = interpWaterC(q);
+// ------------------------------------------------------------
+// 10. Floor covering resistance
+// ------------------------------------------------------------
+function getFloorCoverR(room: RoomInput): number | undefined {
+  if (room.floorCover) return FLOOR_COVER_R[room.floorCover];
+  return undefined;
+}
 
+// ------------------------------------------------------------
+// 11. Main function
+// ------------------------------------------------------------
+export function calculateRoom(
+  r: RoomInput,
+  settings: ProjectSettings
+): RoomResults {
+  const dT = (r.setpointC ?? settings.indoorTempC) - settings.outdoorTempC;
+  const { U, achOrN } = mergeUValues(settings);
+
+  const qFabric = fabricLoss_W(r, U, dT);
+  const qVent = ventilationLoss_W(r, settings, achOrN, dT);
+  const qPsi = thermalBridge_W(settings, dT);
+  const qGround = groundLoss_W(settings, r, dT);
+
+  const qBefore = qFabric + qVent + qPsi + qGround;
+  const qAfter = applySafetyFactors(qBefore, settings);
+
+  const area = roomArea_m2(r);
+  const load_W_per_m2 = area > 0 ? qAfter / area : 0;
+
+  const spacingSel = loadToSpacing(load_W_per_m2);
+  const materials = materialEstimationImperial(
+    r,
+    spacingSel.spacing_in,
+    spacingSel.tubeSize_in
+  );
+
+  const floorR = getFloorCoverR(r);
+  let waterTemp_C = interpWaterC(load_W_per_m2);
+  if (typeof floorR === "number") {
+    waterTemp_C += Math.min(12, 25 * floorR);
+  }
+
+  // ------------------------------------------------------------
   // Warnings
+  // ------------------------------------------------------------
   const warnings: string[] = [];
-  if (q > 40)
-    warnings.push(
-      "High load (>40 W/m²): tighten spacing and/or increase cavity temperature."
-    );
-  if (Lft / loops > loopMax) warnings.push("Exceeds loop limit — add loops.");
-  if (q > 145)
+
+  // High load
+  if (load_W_per_m2 > 40)
+    warnings.push("High load (>40 W/m²): tighten spacing and/or raise SWT.");
+
+  // Loop limit
+  if (
+    materials.Lft / materials.loops >
+    (spacingSel.tubeSize_in === 0.75 ? 400 : 300)
+  )
+    warnings.push("Exceeds loop limit — add more loops.");
+
+  // High load → recommend 3/4" tubing
+  if (load_W_per_m2 > 145)
     warnings.push('Recommend 3/4" tubing due to high load (>145 W/m²).');
 
+  // ✅ Restored: joist spacing warning from new structured code
+  if (r.joistSpacing === "24in_600mm" && load_W_per_m2 > 120)
+    warnings.push(
+      '24" joist bays with high load – consider adding plates or reducing spacing.'
+    );
+
   return {
-    Q_W: Q_design,
-    q_Wm2: q,
-    spacing_in,
-    tubingSize,
-    tubingLength_ft: Lft,
-    loops,
-    perLoop_ft: perLoop,
-    fins_count: fins,
-    clips_count: clips,
-    waterC,
+    name: r.name,
+    qFabric_W: qFabric,
+    qVent_W: qVent,
+    qPsi_W: qPsi,
+    qGround_W: qGround,
+    qBeforeFactors_W: qBefore,
+    qAfterFactors_W: qAfter,
+
+    load_W_per_m2,
+    spacing_in: spacingSel.spacing_in,
+    tubeSize_in: spacingSel.tubeSize_in,
+
+    // ✅ Metric (required by RoomResults)
+    tubingLength_m: materials.Lft * 0.3048, // convert ft → m
+    perLoopLength_m: materials.perLoop_ft * 0.3048, // convert ft → m
+
+    // ✅ Optional (legacy, still available)
+    tubingLength_ft: materials.Lft,
+    perLoop_ft: materials.perLoop_ft,
+
+    fins_qty: materials.fins,
+    clips_qty: materials.clips,
+    loops_qty: materials.loops,
+
+    waterTemp_C,
     warnings,
+
+    // ✅ Optional metadata
+    joistSpacing: r.joistSpacing,
+    floorCover: r.floorCover,
+    floorCover_R_m2K_per_W: floorR,
+    floorCover_U_W_per_m2K: floorR ? 1 / floorR : undefined,
   };
 }

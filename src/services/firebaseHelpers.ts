@@ -13,11 +13,11 @@ import {
   deleteDoc,
   updateDoc,
 } from "firebase/firestore";
-import { ProjectHeader, Room } from "../models/projectTypes";
+import { ProjectSettings, RoomInput } from "../models/projectTypes";
 import { uid } from "../utils/uid";
 
-export type RichProject = ProjectHeader & {
-  rooms: Room[];
+export type RichProject = ProjectSettings & {
+  rooms: RoomInput[];
   id?: string;
   userId?: string;
 };

@@ -1,18 +1,22 @@
 import React, { useState } from "react";
-import { ProjectHeader, Room } from "../../models/projectTypes";
+import {
+  ProjectSettings,
+  RoomInput,
+  ProjectSummary, 
+} from "../../models/projectTypes";
 import { ProjectForm } from "../forms/ProjectForm";
 import { RoomCard } from "../rooms/RoomCard";
 import { SummaryCard } from "../summary/SummaryCard";
-import { computeRoom } from "../../utils/physics";
+import { calculateRoom } from "../../utils/physics";
 
 interface ProjectEditorProps {
-  project: any;
-  rooms: Room[];
-  onUpdateProject: (patch: Partial<ProjectHeader>) => void;
-  onUpdateRoom: (id: string, patch: Partial<Room>) => void;
+  project: ProjectSettings & { rooms: RoomInput[] };
+  rooms: RoomInput[];
+  onUpdateProject: (patch: Partial<ProjectSettings>) => void;
+  onUpdateRoom: (id: string, patch: Partial<RoomInput>) => void;
   onAddRoom: () => void;
   onRemoveRoom: (id: string) => void;
-  summary: any;
+  summary: ProjectSummary | null;
 }
 
 export const ProjectEditor: React.FC<ProjectEditorProps> = ({
@@ -29,7 +33,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({
   );
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg   p-0">
+    <div className="bg-white rounded-2xl shadow-lg p-0">
       {/* Tabs */}
       <div className="flex items-center justify-around mb-6 border-b border-slate-200">
         {["details", "rooms", "summary"].map((tab) => (
@@ -78,16 +82,13 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({
           )}
 
           {rooms.map((room) => (
-            <div
-              key={room.id}
-              className=" bg-white p-0"
-            >
+            <div key={room.id} className="bg-white p-0">
               <RoomCard
                 room={room}
                 project={project}
                 onUpdateRoom={onUpdateRoom}
                 onRemoveRoom={onRemoveRoom}
-                computeRoom={computeRoom}
+                calculateRoom={calculateRoom}
               />
             </div>
           ))}

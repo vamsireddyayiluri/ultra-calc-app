@@ -107,7 +107,6 @@ export default function RegisterForm() {
   }, []);
   const validatePhoneNumber = (number: any) => {
     const cleaned = number.replace(/\D/g, "");
-    console.log("Cleaned phone number:", cleaned);
     return cleaned.length >= 9 && cleaned.length <= 15;
   };
 
@@ -161,7 +160,6 @@ export default function RegisterForm() {
         address: auth.address.trim(),
       };
 
-      console.log("Registration payload:", payload);
       await registerAction(payload,showMessage, navigate);
     } catch (error: any) {
       const message = error?.message || "Registration failed.";

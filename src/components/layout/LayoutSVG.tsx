@@ -1,8 +1,8 @@
-import { Method } from "../../models/projectTypes";
+import { InstallMethod } from "../../models/projectTypes";
 import { ft_to_m } from "../../utils/conversions";
 
 export function LayoutSVG({ method, length_m, width_m, spacing_in }: {
-  method: Method; length_m: number; width_m: number; spacing_in: number;
+  method: InstallMethod; length_m: number; width_m: number; spacing_in: number;
 }) {
   // scale to 360x240 viewbox
   const VB_W = 360;

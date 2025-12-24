@@ -1,8 +1,8 @@
 import React from "react";
-import { ProjectHeader } from "../../models/projectTypes";
+import { ProjectSettings } from "../../models/projectTypes";
 
 interface ProjectCardProps {
-  project: ProjectHeader;
+  project: ProjectSettings;
   onClick: () => void;
 }
 
@@ -30,7 +30,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
         <p>
           <span className="text-slate-500">Indoor / Outdoor:</span>{" "}
           <span className="font-medium">
-            {project.designIndoorC}° / {project.designOutdoorC}°
+            {project.indoorTempC}° / {project.outdoorTempC}°
           </span>
         </p>
         <p>
