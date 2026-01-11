@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="a" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72.02 16">
+  <defs>
+    <style>
+      .b {
+        fill: #fff;
+      }
+
+      .c {
+        fill: #bbbdbf;
+      }
+
+      .d {
+        fill: none;
+        stroke: #ed1c24;
+        stroke-miterlimit: 10;
+        stroke-width: 2px;
+      }
+
+      .e {
+        fill: #58595b;
+      }
+    </style>
+  </defs>
+  <rect class="b" x="1" width="70.02" height="15"/>
+  <path class="d" d="M21.67,0h0c0,6.08,4.92,11,11,11h6.68C45.42,11,50.35,6.08,50.35,0h0"/>
+  <rect class="c" width="2" height="16" transform="translate(2 16) rotate(180)"/>
+  <rect class="c" x="70.02" width="2" height="16" transform="translate(142.03 16) rotate(180)"/>
+  <rect class="e" x="35.01" y="-21.01" width="2" height="72.02" transform="translate(21.01 51.01) rotate(-90)"/>
+</svg>

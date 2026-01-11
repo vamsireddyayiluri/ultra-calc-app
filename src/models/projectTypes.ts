@@ -1,5 +1,6 @@
-export type UnitMode = "metric" | "imperial";
-export type Region = "UK" | "US" | "EU" | "CA";
+import { INSTALL_METHOD_OPTIONS } from "./presets";
+
+export type Region = "UK" | "EU" | "US" | "CA_METRIC" | "CA_IMPERIAL";
 export type StandardsMode =
   | "generic"
   | "BS_EN_12831"
@@ -12,6 +13,18 @@ export type InsulationPeriodKey =
   | "y1980_2000"
   | "y2001_2015"
   | "y2016p";
+
+export type UIUnits = {
+  length: "m" | "ft";
+  area: "m²" | "ft²";
+  temperature: "°C" | "°F";
+  uValue: "W/m²·K" | "BTU/hr·ft²·°F";
+  power: "W" | "BTU/hr";
+  powerDensity: "W/m²" | "BTU/hr·ft²";
+  ventilation: "m³/h" | "cfm";
+  psi: "W/K" | "Btu/hr·°F";
+};
+
 // === U-Values ===
 export interface MaterialUValues {
   wall: number;
@@ -26,17 +39,15 @@ export interface ProjectSettings {
   name: string;
   contractor: string;
   address: string;
-  unitMode: UnitMode;
   region: Region;
   standardsMode: StandardsMode;
   insulationPeriod?: InsulationPeriodKey;
   indoorTempC: number;
-  outdoorTempC: number;
+  outdoorTempC: number | null;
   safetyFactorPct?: number;
   heatUpFactorPct?: number;
 
   // new psi name from new file (psiAllowance_W_per_K) but keep old
-  psiThermalBridge_W_per_K?: number; // old
   psiAllowance_W_per_K?: number; // new
 
   floorOnGround?: boolean;
@@ -74,10 +85,12 @@ export interface PeriodPreset {
   ACH: number;
 }
 
-export type InstallMethod = "top" | "hangers" | "drilled" | "inslab";
+export type InstallMethod = (typeof INSTALL_METHOD_OPTIONS)[number]["value"];
+
+// Joist spacing in inches (authoritative)
+export type JoistSpacingOption = 12 | 16 | 19 | 24;
 
 export type GlazingType = "single" | "double" | "triple";
-export type JoistSpacingOption = "16in_400mm" | "19in_488mm" | "24in_600mm";
 
 export type FloorCoverKey =
   | "tile_stone"
@@ -106,34 +119,24 @@ export interface RoomInput {
   floorCover?: FloorCoverKey;
 }
 
+// models/projectTypes.ts
+
 export interface RoomResults {
   name: string;
+
   qFabric_W: number;
   qVent_W: number;
   qPsi_W: number;
   qGround_W: number;
+
   qBeforeFactors_W: number;
   qAfterFactors_W: number;
 
   load_W_per_m2: number;
-  spacing_in: number;
-  tubeSize_in: 0.5 | 0.75;
-
-  tubingLength_m: number;
-  fins_qty: number;
-  clips_qty: number;
-  loops_qty: number;
-  perLoopLength_m: number;
-
   waterTemp_C: number;
-  warnings: string[];
-  tubingLength_ft?: number;
-  perLoop_ft?: number;
-  Q_W?: number;
-  q_Wm2?: number;
 
-  joistSpacing?: JoistSpacingOption;
-  floorCover?: FloorCoverKey;
+  warnings: string[];
+
   floorCover_R_m2K_per_W?: number;
   floorCover_U_W_per_m2K?: number;
 }
@@ -159,11 +162,34 @@ export interface ProjectSummary {
 
   /** Notes or warnings */
   notes?: string[];
+  ultraFinSpacing_mm?: number | "VARIES";
+  tubingSpacing_mm?: number | "VARIES";
 }
 
 export interface CalcOutput {
   rooms: RoomResults[];
   summary: ProjectSummary;
+}
+// models/materialTypes.ts (new file)
+
+export interface MaterialResults {
+  tubing_m: number;
+  tubing_ft: number;
+
+  loops: number;
+  m_per_loop: number;
+  ft_per_loop: number;
+
+  fins_pairs: number;
+  fin_halves: number;
+
+  drilling_supports: number;
+  hanging_supports?: number;
+  open_web_ultra_clips?: number;
+  topdown_ultra_clips?: number;
+  topdown_uc1212?: number;
+
+  supplementalWarning: boolean;
 }
 
 export interface Side {

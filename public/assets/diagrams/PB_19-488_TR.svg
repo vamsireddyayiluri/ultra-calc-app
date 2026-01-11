@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="a" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 58 16">
+  <defs>
+    <style>
+      .b {
+        fill: #fff;
+      }
+
+      .c {
+        fill: #bbbdbf;
+      }
+
+      .d {
+        fill: none;
+        stroke: #ed1c24;
+        stroke-miterlimit: 10;
+        stroke-width: 2px;
+      }
+
+      .e {
+        fill: #58595b;
+      }
+    </style>
+  </defs>
+  <rect class="b" x="1.05" y="1" width="55.81" height="15"/>
+  <g>
+    <path class="d" d="M29.05,16h0c0-6.08,4.92-11,11-11h16.9"/>
+    <rect class="c" x="55.95" width="2" height="16"/>
+    <rect class="c" x=".05" width="2" height="16"/>
+    <rect class="e" x="28" y="-27.95" width="2" height="57.9" transform="translate(30 -28) rotate(90)"/>
+  </g>
+</svg>

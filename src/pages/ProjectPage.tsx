@@ -34,7 +34,6 @@ export default function ProjectPage() {
   const { showMessage } = useSnackbar();
   const [showActionsDropdown, setShowActionsDropdown] = useState(false);
 
-  // 🧩 Load project or create a new one
   useEffect(() => {
     const fetchData = async () => {
       if (id) {
@@ -46,12 +45,11 @@ export default function ProjectPage() {
           name: "",
           contractor: "",
           address: "",
-          unitMode: "metric",
           region: "UK",
           standardsMode: "BS_EN_12831",
           insulationPeriod: "y2001_2015",
           indoorTempC: 21,
-          outdoorTempC: -10,
+          outdoorTempC: null,
           safetyFactorPct: 12.5,
           heatUpFactorPct: 27.5,
           psiAllowance_W_per_K: 0.04,
@@ -103,9 +101,9 @@ export default function ProjectPage() {
       ceilingExposed: false,
       floorExposed: false,
       setpointC: 0, // Default indoor setpoint temperature (°C)
-      joistSpacing: "16in_400mm", // Default joist spacing
+      joistSpacing: 16, // Default joist spacing
       floorCover: "tile_stone", // Default floor type
-      installMethod: "drilled", // Default install method
+      installMethod: "DRILLING", // Default install method
     };
 
     setProject({ ...project, rooms: [...project.rooms, newRoom] });
@@ -197,31 +195,7 @@ export default function ProjectPage() {
             </button>
 
             {/* Units Switcher */}
-            <div className="w-full flex justify-end sm:justify-end items-center">
-              <span className="text-xs text-slate-500">Units :</span>
-              <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 m-2 shadow-sm">
-                <button
-                  className={`px-3 py-1.5 rounded-md text-sm font-semibold ${
-                    project.unitMode === "metric"
-                      ? "bg-slate-900 text-white"
-                      : "text-slate-700"
-                  }`}
-                  onClick={() => updateProject({ unitMode: "metric" })}
-                >
-                  Metric
-                </button>
-                <button
-                  className={`px-3 py-1.5 rounded-md text-sm font-semibold ${
-                    project.unitMode === "imperial"
-                      ? "bg-slate-900 text-white"
-                      : "text-slate-700"
-                  }`}
-                  onClick={() => updateProject({ unitMode: "imperial" })}
-                >
-                  Imperial
-                </button>
-              </div>
-            </div>
+           
           </div>
 
           {/* RIGHT SIDE: Actions */}

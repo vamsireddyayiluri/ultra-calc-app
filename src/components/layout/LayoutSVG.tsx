@@ -16,7 +16,7 @@ export function LayoutSVG({ method, length_m, width_m, spacing_in }: {
   // Draw parallel runs based on spacing (convert to meters)
   const spacing_m = ft_to_m(spacing_in / 12);
   const runs: { x1: number; y1: number; x2: number; y2: number }[] = [];
-  if (method === "inslab") {
+  if (method === "INSLAB") {
     // grid (horizontal lines)
     for (let y = 0; y <= width_m; y += spacing_m) {
       runs.push({

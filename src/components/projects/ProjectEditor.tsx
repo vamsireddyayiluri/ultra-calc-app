@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import {
   ProjectSettings,
   RoomInput,
-  ProjectSummary, 
+  ProjectSummary,
 } from "../../models/projectTypes";
 import { ProjectForm } from "../forms/ProjectForm";
 import { RoomCard } from "../rooms/RoomCard";

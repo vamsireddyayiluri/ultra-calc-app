@@ -1,3 +1,4 @@
+// src/components/rooms/RoomCard.tsx
 import React from "react";
 import { SectionCard } from "../layout/SectionCard";
 import { Field } from "../forms/Field";
@@ -10,21 +11,22 @@ import {
   JoistSpacingOption,
   FloorCoverKey,
 } from "../../models/projectTypes";
+import { getUIUnits } from "../../helpers/updateUiLabels";
+import { normalizeProjectSettings } from "../../utils/normalizeProject";
+import { formatRoomResults } from "../../utils/formatRoomResults";
 import {
-  m2_to_ft2,
-  ft_to_m,
-  W_to_Btuh,
-  Wpm2_to_Btuhft2,
-  C_to_F,
-  ft2_to_m2,
-} from "../../utils/conversions";
-
-// --- Safe parse utility ---
-function safeParseNumber(value: string): number | undefined {
-  if (value === "" || value === "-") return undefined;
-  const num = Number(value);
-  return isNaN(num) ? undefined : num;
-}
+  fromDisplayArea,
+  fromDisplayLength,
+  fromDisplayTemperature,
+  toDisplayArea,
+  toDisplayLength,
+  toDisplayTemperature,
+} from "../../utils/display";
+import { runUltraCalc } from "../../utils/ultraCalcAdapter";
+import { INSTALL_METHOD_OPTIONS } from "../../models/presets";
+import { getInstallMethodLabel } from "../../utils/formatProjectSummary";
+import { buildLayout } from "../../layout/layoutEngine";
+import { FloorLayoutSvg } from "../../layout/FloorLayoutSvg";
 
 interface RoomCardProps {
   room: RoomInput;
@@ -41,74 +43,34 @@ export const RoomCard: React.FC<RoomCardProps> = ({
   onRemoveRoom,
   calculateRoom,
 }) => {
+  const normalizedProject = normalizeProjectSettings(project);
+
   const res = React.useMemo(
-    () => calculateRoom(room, project),
-    [room, project, project.unitMode]
+    () => calculateRoom(room, normalizedProject),
+    [room, project]
   );
+  const ultra = React.useMemo(
+    () => runUltraCalc(room, res, project),
+    [room, res, project]
+  );
+  const layout = buildLayout({
+    roomLength_m: room.length_m!,
+    roomWidth_m: room.width_m!,
+    joist: room.joistSpacing!,
+    load: ultra.selection.mode === "LL" ? "LL" : "HL",
+    method: ultra.selection.method,
+  });
 
-  const {
-    qFabric_W,
-    qVent_W,
-    qGround_W,
-    qPsi_W,
-    qAfterFactors_W,
-    load_W_per_m2,
-    spacing_in,
-    tubeSize_in,
-    tubingLength_m,
-    fins_qty,
-    clips_qty,
-    loops_qty,
-    perLoopLength_m,
-    waterTemp_C,
-    warnings,
-    floorCover_R_m2K_per_W,
-    floorCover_U_W_per_m2K,
-  } = res;
-
-  // --- Unit labels ---
-  const lenLabel = project.unitMode === "metric" ? "m" : "ft";
-  const areaLabel = project.unitMode === "metric" ? "m²" : "ft²";
-
-  const toDisplayLength = (m: number) =>
-    project.unitMode === "metric" ? m : m * 3.28084;
-  const fromDisplayLength = (v: number) =>
-    project.unitMode === "metric" ? v : ft_to_m(v);
-
-  const toDisplayArea = (m2: number) =>
-    project.unitMode === "metric" ? m2 : m2_to_ft2(m2);
-  const fromDisplayArea = (v: number) =>
-    project.unitMode === "metric" ? v : ft2_to_m2(v);
-
-  // --- Display formatting ---
-  const QDisp =
-    project.unitMode === "metric"
-      ? `${Math.round(qAfterFactors_W)} W`
-      : `${Math.round(W_to_Btuh(qAfterFactors_W))} Btu/h`;
-
-  const QDensityDisp =
-    project.unitMode === "metric"
-      ? `${load_W_per_m2.toFixed(1)} W/m²`
-      : `${Wpm2_to_Btuhft2(load_W_per_m2).toFixed(1)} Btu/h·ft²`;
-
-  const LDisp =
-    project.unitMode === "metric"
-      ? `${tubingLength_m.toFixed(1)} m`
-      : `${Math.round(tubingLength_m * 3.28084)} ft`;
-
-  const waterTempDisplay =
-    project.unitMode === "metric"
-      ? `${Math.round(waterTemp_C)} °C`
-      : `${Math.round(C_to_F(waterTemp_C))} °F`;
-
-  const areaVal =
-    project.unitMode === "metric"
-      ? `${(room.length_m * room.width_m).toFixed(2)} m²`
-      : `${m2_to_ft2(room.length_m * room.width_m).toFixed(1)} ft²`;
+  const uiUnits = getUIUnits(project.region);
+  const lenLabel = uiUnits.length;
+  const areaLabel = uiUnits.area;
+  const display = formatRoomResults(project.region, res);
+  // const areaVal = `${(room.length_m * room.width_m).toFixed(2)} ${
+  //   uiUnits.area
+  // }`;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 bg-white">
-      {/* --- Room Inputs --- */}
       <SectionCard title={room.name}>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {/* Room Name */}
@@ -123,15 +85,16 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           </Field>
 
           {/* Setpoint */}
-          <Field label="Setpoint Temp (°C)">
+          <Field label={`Setpoint Temp (${uiUnits.temperature})`}>
             <input
               type="number"
               className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={room.setpointC ?? ""}
+              value={toDisplayTemperature(project.region, room.setpointC) ?? ""}
               onChange={(e) => {
-                const val = e.target.value;
+                const raw =
+                  e.target.value === "" ? undefined : Number(e.target.value);
                 onUpdateRoom(room.name, {
-                  setpointC: val === "" ? undefined : safeParseNumber(val),
+                  setpointC: fromDisplayTemperature(project.region, raw),
                 });
               }}
             />
@@ -142,16 +105,12 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             <input
               type="number"
               className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={
-                room.length_m !== undefined
-                  ? toDisplayLength(room.length_m)
-                  : ""
-              }
+              value={toDisplayLength(project.region, room.length_m) ?? ""}
               onChange={(e) => {
-                const val = e.target.value;
+                const raw =
+                  e.target.value === "" ? undefined : Number(e.target.value);
                 onUpdateRoom(room.name, {
-                  length_m:
-                    val === "" ? undefined : fromDisplayLength(Number(val)),
+                  length_m: fromDisplayLength(project.region, raw),
                 });
               }}
             />
@@ -162,14 +121,12 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             <input
               type="number"
               className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={
-                room.width_m !== undefined ? toDisplayLength(room.width_m) : ""
-              }
+              value={toDisplayLength(project.region, room.width_m) ?? ""}
               onChange={(e) => {
-                const val = e.target.value;
+                const raw =
+                  e.target.value === "" ? undefined : Number(e.target.value);
                 onUpdateRoom(room.name, {
-                  width_m:
-                    val === "" ? undefined : fromDisplayLength(Number(val)),
+                  width_m: fromDisplayLength(project.region, raw),
                 });
               }}
             />
@@ -180,16 +137,12 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             <input
               type="number"
               className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={
-                room.height_m !== undefined
-                  ? toDisplayLength(room.height_m)
-                  : ""
-              }
+              value={toDisplayLength(project.region, room.height_m) ?? ""}
               onChange={(e) => {
-                const val = e.target.value;
+                const raw =
+                  e.target.value === "" ? undefined : Number(e.target.value);
                 onUpdateRoom(room.name, {
-                  height_m:
-                    val === "" ? undefined : fromDisplayLength(Number(val)),
+                  height_m: fromDisplayLength(project.region, raw),
                 });
               }}
             />
@@ -200,19 +153,12 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             <input
               type="number"
               className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={
-                room.exteriorLen_m !== undefined
-                  ? toDisplayLength(room.exteriorLen_m)
-                  : ""
-              }
+              value={toDisplayLength(project.region, room.exteriorLen_m) ?? ""}
               onChange={(e) => {
-                const val = e.target.value;
-                const parsed = safeParseNumber(val);
+                const raw =
+                  e.target.value === "" ? undefined : Number(e.target.value);
                 onUpdateRoom(room.name, {
-                  exteriorLen_m:
-                    val === "" || parsed === undefined
-                      ? undefined
-                      : fromDisplayLength(parsed),
+                  exteriorLen_m: fromDisplayLength(project.region, raw),
                 });
               }}
             />
@@ -223,19 +169,12 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             <input
               type="number"
               className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={
-                room.windowArea_m2 !== undefined
-                  ? toDisplayArea(room.windowArea_m2)
-                  : ""
-              }
+              value={toDisplayArea(project.region, room.windowArea_m2) ?? ""}
               onChange={(e) => {
-                const val = e.target.value;
-                const parsed = safeParseNumber(val);
+                const raw =
+                  e.target.value === "" ? undefined : Number(e.target.value);
                 onUpdateRoom(room.name, {
-                  windowArea_m2:
-                    val === "" || parsed === undefined
-                      ? undefined
-                      : fromDisplayArea(parsed),
+                  windowArea_m2: fromDisplayArea(project.region, raw),
                 });
               }}
             />
@@ -246,19 +185,12 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             <input
               type="number"
               className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={
-                room.doorArea_m2 !== undefined
-                  ? toDisplayArea(room.doorArea_m2)
-                  : ""
-              }
+              value={toDisplayArea(project.region, room.doorArea_m2) ?? ""}
               onChange={(e) => {
-                const val = e.target.value;
-                const parsed = safeParseNumber(val);
+                const raw =
+                  e.target.value === "" ? undefined : Number(e.target.value);
                 onUpdateRoom(room.name, {
-                  doorArea_m2:
-                    val === "" || parsed === undefined
-                      ? undefined
-                      : fromDisplayArea(parsed),
+                  doorArea_m2: fromDisplayArea(project.region, raw),
                 });
               }}
             />
@@ -271,14 +203,15 @@ export const RoomCard: React.FC<RoomCardProps> = ({
               value={room.joistSpacing ?? ""}
               onChange={(e) =>
                 onUpdateRoom(room.name, {
-                  joistSpacing: e.target.value as JoistSpacingOption,
+                  joistSpacing: Number(e.target.value) as JoistSpacingOption,
                 })
               }
             >
               <option value="">Select</option>
-              <option value="16in_400mm">16" / 400mm</option>
-              <option value="19in_488mm">19" / 488mm</option>
-              <option value="24in_600mm">24" / 600mm</option>
+              <option value={12}>12" (300 mm)</option>
+              <option value={16}>16" (400 mm)</option>
+              <option value={19}>19" (488 mm)</option>
+              <option value={24}>24" (600 mm)</option>
             </select>
           </Field>
 
@@ -308,23 +241,33 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           <Field label="Install Method">
             <select
               className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={room.installMethod}
+              value={room.installMethod ?? ""}
               onChange={(e) =>
                 onUpdateRoom(room.name, {
                   installMethod: e.target.value as InstallMethod,
                 })
               }
             >
-              <option value="top">Top-Down</option>
-              <option value="hangers">Hangers</option>
-              <option value="drilled">Drilled Joists</option>
-              <option value="inslab">In-Slab</option>
+              <option value="">Select</option>
+
+              {INSTALL_METHOD_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
           </Field>
         </div>
 
         <div className="mt-3 flex items-center justify-between">
-          <div className="text-xs text-slate-500">Area: {areaVal}</div>
+          <div className="text-xs text-slate-500">
+            Area:{" "}
+            {toDisplayArea(
+              project.region,
+              room.length_m * room.width_m
+            )?.toFixed(2)}{" "}
+            {uiUnits.area}
+          </div>
           <button
             className="text-sm text-red-600 hover:underline"
             onClick={() => onRemoveRoom(room.name)}
@@ -334,88 +277,158 @@ export const RoomCard: React.FC<RoomCardProps> = ({
         </div>
       </SectionCard>
 
-      {/* --- Results --- */}
-      <SectionCard title="Results">
-        <div className="grid grid-cols-2 gap-2 text-sm">
-          <div className="text-slate-600">Total Heat Load</div>
-          <div className="font-semibold text-right">{QDisp}</div>
+      {/* -------- Physics Results -------- */}
+      <SectionCard title="Results & Materials">
+        {/* ---------------- Heat Loss Results ---------------- */}
+        <div className="mb-4">
+          <h4 className="text-sm font-semibold text-slate-700 mb-2">
+            Heat Loss Results
+          </h4>
 
-          <div className="text-slate-600">Per-Area Load</div>
-          <div className="font-semibold text-right">{QDensityDisp}</div>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div>Total Heat</div>
+            <div className="text-right font-semibold">{display.totalHeat}</div>
 
-          <div className="text-slate-600">Fabric Loss</div>
-          <div className="text-right">
-            {project.unitMode === "metric"
-              ? `${Math.round(qFabric_W)} W`
-              : `${Math.round(W_to_Btuh(qFabric_W))} Btu/h`}
+            <div>Load Density</div>
+            <div className="text-right">{display.loadDensity}</div>
+
+            <div>Fabric</div>
+            <div className="text-right">{display.qFabric}</div>
+
+            <div>Ventilation</div>
+            <div className="text-right">{display.qVent}</div>
+
+            <div>Psi</div>
+            <div className="text-right">{display.qPsi}</div>
+
+            <div>Ground</div>
+            <div className="text-right">{display.qGround}</div>
+
+            <div>Water Temp</div>
+            <div className="text-right font-semibold">{display.waterTemp}</div>
           </div>
 
-          <div className="text-slate-600">Ventilation Loss</div>
-          <div className="text-right">
-            {project.unitMode === "metric"
-              ? `${Math.round(qVent_W)} W`
-              : `${Math.round(W_to_Btuh(qVent_W))} Btu/h`}
-          </div>
-
-          <div className="text-slate-600">Ground Loss</div>
-          <div className="text-right">
-            {project.unitMode === "metric"
-              ? `${Math.round(qGround_W)} W`
-              : `${Math.round(W_to_Btuh(qGround_W))} Btu/h`}
-          </div>
-
-          <div className="text-slate-600">Psi Loss</div>
-          <div className="text-right">
-            {project.unitMode === "metric"
-              ? `${Math.round(qPsi_W)} W`
-              : `${Math.round(W_to_Btuh(qPsi_W))} Btu/h`}
-          </div>
-
-          <div className="text-slate-600">Recommended Spacing</div>
-          <div className="font-semibold text-right">
-            {spacing_in}" — {tubeSize_in}"
-          </div>
-
-          <div className="text-slate-600">Tubing Length</div>
-          <div className="font-semibold text-right">{LDisp}</div>
-
-          <div className="text-slate-600">Water Temp</div>
-          <div className="font-semibold text-right">{waterTempDisplay}</div>
-
-          <div className="text-slate-600">Floor Cover R / U</div>
-          <div className="font-semibold text-right">
-            R={floorCover_R_m2K_per_W?.toFixed(3)} / U=
-            {floorCover_U_W_per_m2K?.toFixed(3)}
-          </div>
-
-          <div className="text-slate-600">Ultra-Fins</div>
-          <div className="text-right">{fins_qty}</div>
-
-          <div className="text-slate-600">Clips</div>
-          <div className="text-right">{clips_qty}</div>
-
-          <div className="text-slate-600">Loops / Per-Loop</div>
-          <div className="text-right">
-            {loops_qty} ({perLoopLength_m.toFixed(1)} m/loop)
-          </div>
+          {res.warnings?.length > 0 && (
+            <div className="mt-3 text-xs text-amber-700 bg-amber-50 border rounded-md p-2">
+              {res.warnings.map((w, i) => (
+                <div key={i}>⚠ {w}</div>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div className="mt-4">
-          <LayoutSVG
-            method={room.installMethod}
-            length_m={room.length_m}
-            width_m={room.width_m}
-            spacing_in={spacing_in}
-          />
-        </div>
+        {/* ---------------- Materials (Ultra-Calc) ---------------- */}
+        <div className="border-t border-slate-200 pt-4">
+          <h4 className="text-sm font-semibold text-slate-700 mb-2">
+            Materials (Ultra-Calc)
+          </h4>
 
-        {warnings?.length > 0 && (
-          <div className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">
-            {warnings.map((w, i) => (
-              <div key={i}>⚠ {w}</div>
-            ))}
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div className="text-slate-600">Install Method</div>
+            <div className="text-right font-semibold">
+              {getInstallMethodLabel(room.installMethod)}
+            </div>
+
+            <div className="text-slate-600">Tube Size</div>
+            <div className="text-right">{ultra.selection.tubeSize}</div>
+
+            <div className="text-slate-600">Tubing Length</div>
+            <div className="text-right font-semibold">
+              {uiUnits.length === "ft"
+                ? `${ultra.materials.tubing_ft} ft`
+                : `${ultra.materials.tubing_m} m`}
+            </div>
+
+            <div className="text-slate-600">Loops</div>
+            <div className="text-right">
+              {ultra.materials.loops} (
+              {uiUnits.length === "ft"
+                ? `${ultra.materials.ft_per_loop} ft`
+                : `${ultra.materials.m_per_loop.toFixed(1)} m`}
+              /loop)
+            </div>
+
+            <div className="text-slate-600">Ultra-Fins</div>
+            <div className="text-right">
+              {ultra.materials.fins_pairs} pairs ({ultra.materials.fin_halves}{" "}
+              halves)
+            </div>
+
+            {ultra.materials.hanging_supports != null && (
+              <>
+                <div className="text-slate-600">Hanging Supports</div>
+                <div className="text-right">
+                  {ultra.materials.hanging_supports}
+                </div>
+              </>
+            )}
+
+            {ultra.materials.open_web_ultra_clips != null && (
+              <>
+                <div className="text-slate-600">Open-Web Ultra-Clips</div>
+                <div className="text-right">
+                  {ultra.materials.open_web_ultra_clips}
+                </div>
+              </>
+            )}
+
+            {ultra.materials.topdown_ultra_clips != null && (
+              <>
+                <div className="text-slate-600">Top-Down Ultra-Clips</div>
+                <div className="text-right">
+                  {ultra.materials.topdown_ultra_clips}
+                </div>
+              </>
+            )}
+
+            {ultra.materials.topdown_uc1212 != null && (
+              <>
+                <div className="text-slate-600">UC1212 Clips</div>
+                <div className="text-right">
+                  {ultra.materials.topdown_uc1212}
+                </div>
+              </>
+            )}
+            {ultra.materials.topdown_uc1234 != null && (
+              <>
+                <div className="text-slate-600">UC1234 Clips</div>
+                <div className="text-right">
+                  {ultra.materials.topdown_uc1234}
+                </div>
+              </>
+            )}
+
+            {ultra.selection.ultraFinSpacing_mm && (
+              <>
+                <div className="text-slate-600">Ultra-Fin Spacing (C-C)</div>
+                <div className="text-right font-semibold">
+                  {ultra.selection.ultraFinSpacing_mm} mm
+                </div>
+              </>
+            )}
+
+            {ultra.selection.tubingSpacing_mm && (
+              <>
+                <div className="text-slate-600">Tubing Spacing (C-C)</div>
+                <div className="text-right font-semibold">
+                  {ultra.selection.tubingSpacing_mm} mm
+                </div>
+              </>
+            )}
           </div>
-        )}
+
+          {ultra.selection.supplementalWarning && (
+            <div className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-md p-2">
+              🔥 Add Supplemental Heat Recommended
+            </div>
+          )}
+        </div>
+      </SectionCard>
+      {/* -------- Layout Visualization -------- */}
+      <SectionCard title="Layout Visualization">
+        <div className="w-full h-96 border border-slate-300 rounded-md overflow-auto">
+          <FloorLayoutSvg layout={layout} />
+        </div>
       </SectionCard>
     </div>
   );

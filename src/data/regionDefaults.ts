@@ -29,12 +29,22 @@ export const REGION_DEFAULTS: Record<Region, RegionDefaults> = {
     infiltrationACH: 0.3,
     floorOnGround: true,
   },
-  CA: {
+  CA_METRIC: {
     standardsMode: "CSA_F280",
     safetyFactorPct: 15,
     heatUpFactorPct: 30,
     psiAllowance_W_per_K: 0.045,
-    mechVent_m3_per_h: 0.4,
+    mechVent_m3_per_h: 0.4, 
+    infiltrationACH: 0.3,
+    floorOnGround: true,
+  },
+
+  CA_IMPERIAL: {
+    standardsMode: "CSA_F280",
+    safetyFactorPct: 15,
+    heatUpFactorPct: 30,
+    psiAllowance_W_per_K: 0.045,
+    mechVent_m3_per_h: 0.4, 
     infiltrationACH: 0.3,
     floorOnGround: true,
   },

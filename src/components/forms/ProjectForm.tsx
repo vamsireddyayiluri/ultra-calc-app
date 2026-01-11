@@ -12,6 +12,17 @@ import type {
 } from "../../models/projectTypes";
 import { REGION_DEFAULTS } from "../../data/regionDefaults";
 import { getDefaultUValues } from "../../utils/uDefaults";
+import { getUIUnits } from "../../helpers/updateUiLabels";
+import {
+  fromDisplayPsiAllowance,
+  fromDisplayTemperature,
+  fromDisplayUValue,
+  fromDisplayVentilation,
+  toDisplayPsiAllowance,
+  toDisplayTemperature,
+  toDisplayUValue,
+  toDisplayVentilation,
+} from "../../utils/display";
 
 interface ProjectFormProps {
   project: ProjectSettings;
@@ -21,9 +32,10 @@ interface ProjectFormProps {
 
 const REGION_OPTIONS: { key: Region; label: string }[] = [
   { key: "UK", label: "United Kingdom" },
-  { key: "US", label: "United States" },
   { key: "EU", label: "European Union" },
-  { key: "CA", label: "Canada" },
+  { key: "US", label: "United States" },
+  { key: "CA_METRIC", label: "Canada (Metric U-values)" },
+  { key: "CA_IMPERIAL", label: "Canada (Imperial U-values)" },
 ];
 
 declare global {
@@ -50,6 +62,8 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
 
   const regionLabel = project.region ? project.region : "Canada";
   const standardsLabel = project.standardsMode ?? "BS EN 12831";
+
+  const uiUnits = getUIUnits(project.region);
 
   // === Auto-detect location ===
   useEffect(() => {
@@ -140,19 +154,28 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
     label: string,
     fieldKey: keyof ProjectSettings,
     value: number | undefined,
-    opts?: { min?: number; max?: number; step?: number; hint?: string }
+    opts?: {
+      min?: number;
+      max?: number;
+      step?: number;
+      hint?: string;
+      toDisplay?: (v?: number) => number | undefined;
+      fromDisplay?: (v?: number) => number | undefined;
+    }
   ) => (
     <Field label={`${label}${isCustom(fieldKey as string) ? " (custom)" : ""}`}>
       <input
         type="number"
         className="w-full border border-slate-300 rounded-md px-3 py-2"
-        value={value ?? ""}
+        value={(opts?.toDisplay ? opts.toDisplay(value) : value) ?? ""}
         min={opts?.min}
         max={opts?.max}
         step={opts?.step ?? 0.1}
         onChange={(e) => {
-          const v = e.target.value === "" ? undefined : Number(e.target.value);
-          onUpdate({ [fieldKey]: v } as Partial<ProjectSettings>);
+          const raw =
+            e.target.value === "" ? undefined : Number(e.target.value);
+          const normalized = opts?.fromDisplay ? opts.fromDisplay(raw) : raw;
+          onUpdate({ [fieldKey]: normalized } as Partial<ProjectSettings>);
         }}
       />
       {opts?.hint && (
@@ -222,79 +245,50 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
           {error && <div className="text-xs text-red-500 mt-1">{error}</div>}
         </Field>
 
-        <Field label="Standards Mode">
-          <select
-            className="w-full border border-slate-300 rounded-md px-3 py-2"
-            value={project.standardsMode ?? ""}
-            onChange={(e) =>
-              onUpdate({ standardsMode: e.target.value as StandardsMode })
-            }
-          >
-            {standardsForRegion.map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-
         {/* Design Temperatures */}
-        <Field
-          label={`Indoor Design Temperature (${project.unitMode === "metric" ? "°C" : "°F"})`}
-        >
+        <Field label={`Indoor Design Temperature (${uiUnits.temperature})`}>
           <input
             type="number"
             step="0.5"
             className="w-full border border-slate-300 rounded-md px-3 py-2"
             value={
-              project.unitMode === "metric"
-                ? project.indoorTempC ?? ""
-                : project.indoorTempC !== undefined
-                ? (project.indoorTempC * 9) / 5 + 32 // °C → °F
-                : ""
+              toDisplayTemperature(project.region, project.indoorTempC) ?? ""
             }
             onChange={(e) => {
-              const val = e.target.value;
-              if (val === "") {
-                onUpdate({ indoorTempC: undefined });
-                return;
-              }
-
-              const num = Number(val);
-              const tempC =
-                project.unitMode === "metric" ? num : ((num - 32) * 5) / 9; // °F → °C
-              onUpdate({ indoorTempC: tempC });
+              const raw =
+                e.target.value === "" ? undefined : Number(e.target.value);
+              onUpdate({
+                indoorTempC: fromDisplayTemperature(project.region, raw),
+              });
             }}
           />
         </Field>
 
-        <Field
-          label={`Outdoor Design Temperature (${project.unitMode === "metric" ? "°C" : "°F"})`}
-        >
+        <Field label={`Outdoor Design Temperature (${uiUnits.temperature})`}>
           <input
             type="number"
             step="0.5"
+            required
+            aria-required="true"
             className="w-full border border-slate-300 rounded-md px-3 py-2"
             value={
-              project.unitMode === "metric"
-                ? project.outdoorTempC ?? ""
-                : project.outdoorTempC !== undefined
-                ? (project.outdoorTempC * 9) / 5 + 32 // °C → °F
-                : ""
+              toDisplayTemperature(project.region, project.outdoorTempC) ?? ""
             }
             onChange={(e) => {
-              const val = e.target.value;
-              if (val === "") {
-                onUpdate({ outdoorTempC: undefined });
-                return;
-              }
+              const raw =
+                e.target.value === "" ? undefined : Number(e.target.value);
 
-              const num = Number(val);
-              const tempC =
-                project.unitMode === "metric" ? num : ((num - 32) * 5) / 9; // °F → °C
-              onUpdate({ outdoorTempC: tempC });
+              onUpdate({
+                outdoorTempC: fromDisplayTemperature(project.region, raw),
+              });
             }}
           />
+
+          {/* ✅ REQUIRED helper text (exact wording) */}
+          <p className="mt-1 text-xs text-slate-500">
+            Enter the coldest outdoor design temperature for your location. This
+            may vary by micro-climate.
+          </p>
         </Field>
 
         {/* Insulation Period */}
@@ -354,6 +348,21 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
 
         {advancedOpen && (
           <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+            <Field label="Standards Mode">
+              <select
+                className="w-full border border-slate-300 rounded-md px-3 py-2"
+                value={project.standardsMode ?? ""}
+                onChange={(e) =>
+                  onUpdate({ standardsMode: e.target.value as StandardsMode })
+                }
+              >
+                {standardsForRegion.map((s) => (
+                  <option key={s.key} value={s.key}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
             {numericField(
               "Safety Factor (%)",
               "safetyFactorPct",
@@ -377,25 +386,38 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
               }
             )}
             {numericField(
-              "Psi allowance (W/K)",
+              `Psi allowance (${uiUnits.psi})`,
               "psiAllowance_W_per_K",
-              project.psiAllowance_W_per_K ?? project.psiThermalBridge_W_per_K,
+              project.psiAllowance_W_per_K,
               {
                 min: 0,
-                max: 1,
-                step: 0.005,
+                max:
+                  project.region === "US" || project.region === "CA_IMPERIAL"
+                    ? 2
+                    : 1,
+                step:
+                  project.region === "US" || project.region === "CA_IMPERIAL"
+                    ? 0.01
+                    : 0.005,
                 hint: "Thermal bridging allowance",
+                toDisplay: (v) => toDisplayPsiAllowance(project.region, v),
+                fromDisplay: (v) => fromDisplayPsiAllowance(project.region, v),
               }
             )}
+
             {numericField(
-              "Mechanical Vent. (m³/h)",
+              `Mechanical Vent. (${uiUnits.ventilation})`,
               "mechVent_m3_per_h",
               project.mechVent_m3_per_h,
               {
                 min: 0,
-                max: 5,
-                step: 0.01,
-                hint: "Ventilation rate (m³/h)",
+                max: 500, // realistic range for CFM
+                step: 1,
+                hint: `Ventilation rate (${uiUnits.ventilation})`,
+
+                // 🔽 DISPLAY ADAPTERS
+                toDisplay: (v) => toDisplayVentilation(project.region, v),
+                fromDisplay: (v) => fromDisplayVentilation(project.region, v),
               }
             )}
             {numericField(
@@ -415,25 +437,25 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
                 isCustom("floorOnGround" as any) ? "(custom)" : ""
               }`}
             >
-              <div className="flex items-center gap-2 mt-1">
+              <label className="flex items-center gap-2 mt-1 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={Boolean(project.floorOnGround)}
                   onChange={(e) =>
                     onUpdate({ floorOnGround: e.target.checked })
                   }
-                  className="h-4 w-4 accent-teal-600 cursor-pointer"
+                  className="cursor-pointer h-4 w-4 accent-teal-600"
                 />
                 <span className="text-sm text-slate-700 select-none">
                   Yes — floor on ground
                 </span>
-              </div>
+              </label>
             </Field>
 
             {/* Custom U-values */}
             <div className="md:col-span-3 border-t border-slate-200 pt-3 mt-2">
               <h4 className="text-sm font-medium text-slate-700 mb-2">
-                Custom U-Values (W/m²·K)
+                Custom U-Values
               </h4>
 
               <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
@@ -448,23 +470,31 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
                 ).map((key) => (
                   <Field
                     key={key}
-                    label={`${key[0].toUpperCase() + key.slice(1)} U-Value`}
+                    label={`${key[0].toUpperCase() + key.slice(1)} U (${
+                      uiUnits.uValue
+                    })`}
                   >
                     <input
                       type="number"
                       step="0.01"
                       min="0"
                       className="w-full border border-slate-300 rounded-md px-3 py-2"
-                      value={project.customUOverrides?.[key] ?? ""}
+                      value={
+                        toDisplayUValue(
+                          project.region,
+                          project.customUOverrides?.[key]
+                        ) ?? ""
+                      }
                       onChange={(e) => {
-                        const val =
+                        const raw =
                           e.target.value === ""
                             ? undefined
                             : Number(e.target.value);
+
                         onUpdate({
                           customUOverrides: {
                             ...project.customUOverrides,
-                            [key]: val,
+                            [key]: fromDisplayUValue(project.region, raw),
                           },
                         });
                       }}

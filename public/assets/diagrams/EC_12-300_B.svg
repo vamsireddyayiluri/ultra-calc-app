@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="a" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 16">
+  <defs>
+    <style>
+      .b {
+        fill: #fff;
+      }
+
+      .c {
+        fill: #bbbdbf;
+      }
+
+      .d {
+        fill: #58595b;
+      }
+    </style>
+  </defs>
+  <rect class="b" x="1" width="34" height="15"/>
+  <g>
+    <rect class="c" width="2" height="16" transform="translate(2 16) rotate(180)"/>
+    <rect class="c" x="34" width="2" height="16" transform="translate(70 16) rotate(180)"/>
+    <rect class="d" x="17" y="-3" width="2" height="36" transform="translate(3 33) rotate(-90)"/>
+  </g>
+</svg>

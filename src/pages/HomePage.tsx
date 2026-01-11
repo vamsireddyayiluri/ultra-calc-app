@@ -74,9 +74,9 @@ export default function HomePage() {
       doorArea_m2: 0,
       ceilingExposed: false,
       floorExposed: false,
-      installMethod: "drilled",
+      installMethod: "DRILLING",
       setpointC: 0,
-      joistSpacing: "16in_400mm",
+      joistSpacing: 16,
       floorCover: "tile_stone",
     };
     const updatedRooms = [...activeProject.rooms, newRoom];

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="b" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 57.9 16">
+  <defs>
+    <style>
+      .d {
+        fill: #fff;
+      }
+
+      .e {
+        fill: #bbbdbf;
+      }
+
+      .f {
+        fill: #58595b;
+      }
+    </style>
+  </defs>
+  <g id="c" data-name="Imperial">
+    <g>
+      <rect class="d" x="1" width="56" height="15"/>
+      <g>
+        <rect class="e" width="2" height="16" transform="translate(2 16) rotate(180)"/>
+        <rect class="e" x="55.9" width="2" height="16" transform="translate(113.8 16) rotate(180)"/>
+        <rect class="f" x="27.95" y="-13.95" width="2" height="57.9" transform="translate(13.95 43.95) rotate(-90)"/>
+      </g>
+    </g>
+  </g>
+</svg>

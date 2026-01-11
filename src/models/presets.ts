@@ -26,10 +26,12 @@ export const FLOOR_COVER_R: Record<FloorCoverKey, number> = {
 
 // Joist spacing options (mm)
 export const JOIST_SPACING_MM: Record<JoistSpacingOption, number> = {
-  "16in_400mm": 400,
-  "19in_488mm": 488,
-  "24in_600mm": 600,
+  12: 300,
+  16: 400,
+  19: 488,
+  24: 600,
 };
+
 
 export const GENERIC_PRESETS: Record<InsulationPeriodKey, PeriodPreset> = {
   pre1980: {
@@ -80,3 +82,11 @@ export const SPACING_TABLE: {
   { maxLoad: 145, spacing_in: 12, tubeSize_in: 0.5 },
   { maxLoad: Infinity, spacing_in: 12, tubeSize_in: 0.75 },
 ];
+export const INSTALL_METHOD_OPTIONS = [
+  { value: "DRILLING", label: "Drilled Joists" },
+  { value: "OPEN_WEB", label: "Open-Web / Truss Joist" },
+  { value: "HANGING_SNAKE", label: "Hanging – Snake" },
+  { value: "HANGING_ULTRACLIP", label: "Hanging – Ultra-Clip" },
+  { value: "TOPDOWN_UC_UC1212", label: "Top-Down" },
+  { value: "INSLAB", label: "In-Slab" },
+] as const;
