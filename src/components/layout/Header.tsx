@@ -70,10 +70,10 @@ export const Header: React.FC<HeaderProps> = ({
           <img
             src={logo}
             alt="Ultra-Calc"
-            className="w-32 cursor-pointer"
+            className="w-44 cursor-pointer"
             onClick={() => navigate("/dashboard")}
           />
-          <div className="leading-tight">
+          <div className="hidden sm:block leading-tight">
             <h1 className="text-lg sm:text-2xl font-semibold text-[#0F1724]">
               {title}
             </h1>

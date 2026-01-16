@@ -62,6 +62,7 @@ export default function HomePage() {
   };
 
   const addRoom = () => {
+    console.log("addRoom");
     if (!activeProject) return;
     const newRoom: RoomInput = {
       id: uid(),
@@ -78,7 +79,9 @@ export default function HomePage() {
       setpointC: 0,
       joistSpacing: 16,
       floorCover: "tile_stone",
+      floorOnGround: false,
     };
+    console.log(newRoom);
     const updatedRooms = [...activeProject.rooms, newRoom];
     setActiveProject({ ...activeProject, rooms: updatedRooms });
     setProjects((prev) =>

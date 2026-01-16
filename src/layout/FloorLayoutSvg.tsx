@@ -29,11 +29,12 @@ export const FloorLayoutSvg: React.FC<Props> = ({ layout }) => {
       {layout.tiles.map((t, i) => (
         <image
           key={i}
-          href={t.asset}
+          href={t.assetBase64 ?? t.asset}
           x={t.x * SCALE}
           y={t.y * SCALE}
-          width={t.w * SCALE}
-          height={t.h * SCALE}
+          width={Math.max(1, t.w * SCALE)}
+          height={Math.max(1, t.h * SCALE)}
+          preserveAspectRatio="xMidYMid meet"
         />
       ))}
     </svg>

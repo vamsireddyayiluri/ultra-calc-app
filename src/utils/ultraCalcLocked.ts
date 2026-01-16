@@ -48,6 +48,7 @@ export interface UltraCalcOutput {
     finBlockSvg: string;
     ultraFinSpacing_mm?: number | null;
     tubingSpacing_mm?: number | null;
+    spacingDisplayText?: string;
   };
   area: {
     ft2: number;
@@ -129,11 +130,9 @@ const OPEN_WEB_CLIPS = {
   24: { LL: 0.286, HL: 0.353 },
 };
 
-const TOPDOWN_PER_BAY = {
-  12: { ultraClips: 2, uc1212: 1 },
-  16: { ultraClips: 2, uc1212: 1 },
-  19: { ultraClips: 2, uc1212: 1 },
-  24: { ultraClips: 2, uc1212: 2 },
+const INSLAB_TUBING_FACTOR = {
+  LL: 1.5, // 8"
+  HL: 2.0, // 6"
 };
 
 /* -----------------------------
@@ -142,7 +141,7 @@ const TOPDOWN_PER_BAY = {
 
 const ceil = Math.ceil;
 
-function toBTU(load: HeatLoadInput): number {
+export function toBTU(load: HeatLoadInput): number {
   return load.unit === "BTU_FT2" ? load.value : load.value / W_M2_PER_BTU_FT2;
 }
 
@@ -155,7 +154,7 @@ function area(room: RoomInput) {
   return { m2, ft2: m2 * FT2_PER_M2 };
 }
 
-function determineMode(loadBTU: number): LoadMode {
+export function determineMode(loadBTU: number): LoadMode {
   if (loadBTU <= LOAD_BANDS.LL.maxBTU) return "LL";
   if (loadBTU <= LOAD_BANDS.HL.maxBTU) return "HL";
   return "HighOutput";
@@ -171,6 +170,11 @@ function calcLoops(tubingFt: number) {
   const loops = Math.max(1, ceil(tubingFt / MAX_LOOP_FT));
   const ftPer = tubingFt / loops;
   return { loops, ftPer, mPer: ftPer * 0.3048 };
+}
+function getInslabSpacingText(load: LoadMode): string | null {
+  if (load === "LL") return '8" (200 mm)';
+  if (load === "HL") return '6" (150 mm)';
+  return null;
 }
 
 type FinSpacingTable = {
@@ -216,15 +220,6 @@ export function getTubingSpacing_mm(
   const mode = load === "LL" ? "LL" : "HL";
   return TUBING_SPACING_MM[joist][mode];
 }
-function calculateTopDownClipCount(
-  finCount: number,
-  heatedRun_m: number
-): number {
-  const clipsFromFins = finCount * 2;
-  const clipsFromRun = ceil(heatedRun_m * 1.5);
-
-  return Math.max(clipsFromFins, clipsFromRun);
-}
 
 export function ultraCalc(input: UltraCalcInput): UltraCalcOutput {
   const loadBTU = toBTU(input.heatLoad);
@@ -232,21 +227,36 @@ export function ultraCalc(input: UltraCalcInput): UltraCalcOutput {
   const calcMode: "LL" | "HL" = mode === "LL" ? "LL" : "HL";
 
   const tubeSize: TubeSize =
-    loadBTU > THRESHOLDS.tubeUpgradeBTU ? "20mm" : "16mm";
+    input.method === "INSLAB"
+      ? "16mm"
+      : loadBTU > THRESHOLDS.tubeUpgradeBTU
+      ? "20mm"
+      : "16mm";
+
   const supplementalWarning = loadBTU > THRESHOLDS.supplementalBTU;
 
   const a = area(input.room);
 
-  const isAcross = input.method === "DRILLING" || input.method === "OPEN_WEB";
+  let tubingFactor: number;
 
-  const tubingFactor = isAcross
-    ? TUBING_ACROSS[input.joist][calcMode]
-    : TUBING_WITH[input.joist];
+  if (input.method === "INSLAB") {
+    tubingFactor = INSLAB_TUBING_FACTOR[calcMode];
+  } else {
+    const isAcross = input.method === "DRILLING" || input.method === "OPEN_WEB";
+    tubingFactor = isAcross
+      ? TUBING_ACROSS[input.joist][calcMode]
+      : TUBING_WITH[input.joist];
+  }
 
   const tubing_ft = ceil(a.ft2 * tubingFactor);
+
   const tubing_m = ceil(a.m2 * tubingFactor * 3.28084);
 
-  const fins_pairs = ceil(a.ft2 / FIN_DENSITY[calcMode].ft2PerFin);
+  const fins_pairs =
+    input.method === "INSLAB"
+      ? 0
+      : ceil(a.ft2 / FIN_DENSITY[calcMode].ft2PerFin);
+
   const fin_halves = fins_pairs * 2;
 
   let hanging_supports: number | undefined;
@@ -267,22 +277,14 @@ export function ultraCalc(input: UltraCalcInput): UltraCalcOutput {
   }
 
   if (input.method === "TOPDOWN_UC_UC1212") {
-    // Heated run length (already calculated)
-    const heatedRun_m = tubing_m;
+    const baseSupports = ceil(tubing_ft * SUPPORTS_PER_FT_TUBE);
 
-    // Total fin count (pairs → halves = actual fins)
-    const finCount = fin_halves;
+    topdown_ultra_clips = baseSupports * 2;
 
-    // ✅ Correct clip calculation
-    topdown_ultra_clips = calculateTopDownClipCount(finCount, heatedRun_m);
-
-    // Tube-size specific clamp
     if (tubeSize === "16mm") {
-      topdown_uc1212 = ceil(topdown_ultra_clips / 2);
-    }
-
-    if (tubeSize === "20mm") {
-      topdown_uc1234 = ceil(topdown_ultra_clips / 2);
+      topdown_uc1212 = baseSupports;
+    } else {
+      topdown_uc1234 = baseSupports;
     }
   }
 
@@ -294,6 +296,13 @@ export function ultraCalc(input: UltraCalcInput): UltraCalcOutput {
   );
 
   const tubingSpacing_mm = getTubingSpacing_mm(input.joist, mode, input.method);
+  const spacingDisplayText =
+    input.method === "INSLAB"
+      ? mode === "LL"
+        ? '8" (200 mm)'
+        : '6" (150 mm)'
+      : undefined;
+
   console.log(
     "ultraFinSpacing_mm",
     ultraFinSpacing_mm,
@@ -308,8 +317,9 @@ export function ultraCalc(input: UltraCalcInput): UltraCalcOutput {
       tubeSize,
       supplementalWarning,
       finBlockSvg: finBlockName(input.joist, calcMode, input.method),
-      ultraFinSpacing_mm,
-      tubingSpacing_mm,
+      ultraFinSpacing_mm: input.method === "INSLAB" ? null : ultraFinSpacing_mm,
+      tubingSpacing_mm: input.method === "INSLAB" ? null : tubingSpacing_mm,
+      spacingDisplayText
     },
     area: {
       ft2: a.ft2,

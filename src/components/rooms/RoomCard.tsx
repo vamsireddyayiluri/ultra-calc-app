@@ -27,47 +27,165 @@ import { INSTALL_METHOD_OPTIONS } from "../../models/presets";
 import { getInstallMethodLabel } from "../../utils/formatProjectSummary";
 import { buildLayout } from "../../layout/layoutEngine";
 import { FloorLayoutSvg } from "../../layout/FloorLayoutSvg";
+import { RightSidebar } from "../../layout/RightSidebar";
+import { formatSpacing } from "../../utils/formatResults";
+import {
+  inlineNestedSvgImages,
+  loadImageAsBase64,
+  svgBase64ToPng,
+} from "../../utils/pdfExport";
+import { resolveSidebarAssets } from "../../layout/sidebarResolver";
 
 interface RoomCardProps {
   room: RoomInput;
   project: ProjectSettings;
+  exportMode?: boolean;
   onUpdateRoom: (id: string, patch: Partial<RoomInput>) => void;
   onRemoveRoom: (id: string) => void;
   calculateRoom: (room: RoomInput, project: ProjectSettings) => RoomResults;
+}
+interface SidebarImages {
+  profiles: string[];
+  supportIcon: string | null;
+  joistLabel: string;
+  label: string;
+  isOpenWeb: boolean;
+  installMethod?: InstallMethod;
 }
 
 export const RoomCard: React.FC<RoomCardProps> = ({
   room,
   project,
+  exportMode = false,
   onUpdateRoom,
   onRemoveRoom,
   calculateRoom,
 }) => {
-  const normalizedProject = normalizeProjectSettings(project);
+  console.log("RoomCard render", room, project);
+  const normalizedProject = React.useMemo(
+    () => normalizeProjectSettings(project),
+    [project]
+  );
 
   const res = React.useMemo(
     () => calculateRoom(room, normalizedProject),
-    [room, project]
+    [room, normalizedProject]
   );
+
   const ultra = React.useMemo(
     () => runUltraCalc(room, res, project),
     [room, res, project]
   );
-  const layout = buildLayout({
-    roomLength_m: room.length_m!,
-    roomWidth_m: room.width_m!,
-    joist: room.joistSpacing!,
-    load: ultra.selection.mode === "LL" ? "LL" : "HL",
-    method: ultra.selection.method,
-  });
+  const [sidebarImages, setSidebarImages] =
+    React.useState<SidebarImages | null>(null);
+
+  const [layout, setLayout] = React.useState<ReturnType<
+    typeof buildLayout
+  > | null>(null);
+
+  // 🔹 Build layout + load images asynchronously
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const build = async () => {
+      if (!room.length_m || !room.width_m || !room.joistSpacing) return;
+
+      const newLayout = buildLayout({
+        roomLength_m: room.length_m,
+        roomWidth_m: room.width_m,
+        joist: room.joistSpacing,
+        load: ultra.selection.mode === "LL" ? "LL" : "HL",
+        method: ultra.selection.method,
+      });
+      if (exportMode) {
+        for (const tile of newLayout.tiles) {
+          if (!tile.asset) continue;
+          tile.assetBase64 = await inlineNestedSvgImages(tile.asset);
+        }
+      }
+
+      if (!cancelled) {
+        setLayout(newLayout);
+      }
+    };
+
+    build();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    room.length_m,
+    room.width_m,
+    room.joistSpacing,
+    ultra.selection.mode,
+    ultra.selection.method,
+  ]);
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const buildSidebar = async () => {
+      const sidebar = resolveSidebarAssets(
+        room.installMethod,
+        room.joistSpacing
+      );
+
+      const isSvg = (s: string) => s.endsWith(".svg");
+
+      const profiles = await Promise.all(
+        sidebar?.profiles.map(async (src) => {
+          if (!src) return "";
+          const svg = isSvg(src)
+            ? await inlineNestedSvgImages(src)
+            : await loadImageAsBase64(src);
+
+          return exportMode ? await svgBase64ToPng(svg, 104, 64) : svg;
+        })
+      );
+
+      const supportIcon = sidebar.supportIcon
+        ? exportMode
+          ? await svgBase64ToPng(
+              await inlineNestedSvgImages(sidebar.supportIcon),
+              48,
+              48
+            )
+          : await inlineNestedSvgImages(sidebar.supportIcon)
+        : null;
+
+      if (!cancelled) {
+        setSidebarImages({
+          profiles:profiles || [],
+          supportIcon,
+          joistLabel:
+            room.installMethod === "INSLAB"
+              ? ultra.selection.spacingDisplayText
+              : sidebar.joistLabel,
+          label: sidebar.label,
+          isOpenWeb: sidebar?.profiles?.length === 2,
+          installMethod: room.installMethod,
+        });
+      }
+    };
+
+    buildSidebar();
+    return () => {
+      cancelled = true;
+    };
+  }, [room.installMethod, room.joistSpacing, exportMode]);
 
   const uiUnits = getUIUnits(project.region);
   const lenLabel = uiUnits.length;
   const areaLabel = uiUnits.area;
   const display = formatRoomResults(project.region, res);
-  // const areaVal = `${(room.length_m * room.width_m).toFixed(2)} ${
-  //   uiUnits.area
-  // }`;
+
+  const DisplayValue: React.FC<{ children: React.ReactNode }> = ({
+    children,
+  }) => (
+    <div className="w-full px-3 py-2 text-sm text-slate-800">
+      {children ?? "—"}
+    </div>
+  );
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 bg-white">
@@ -75,187 +193,277 @@ export const RoomCard: React.FC<RoomCardProps> = ({
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {/* Room Name */}
           <Field label="Room Name">
-            <input
-              className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={room.name}
-              onChange={(e) =>
-                onUpdateRoom(room.name, { name: e.target.value })
-              }
-            />
+            {exportMode ? (
+              <DisplayValue>{room.name}</DisplayValue>
+            ) : (
+              <input
+                className="w-full border border-slate-300 rounded-md px-3 py-2"
+                value={room.name}
+                onChange={(e) =>
+                  onUpdateRoom(room.name, { name: e.target.value })
+                }
+              />
+            )}
           </Field>
 
           {/* Setpoint */}
           <Field label={`Setpoint Temp (${uiUnits.temperature})`}>
-            <input
-              type="number"
-              className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={toDisplayTemperature(project.region, room.setpointC) ?? ""}
-              onChange={(e) => {
-                const raw =
-                  e.target.value === "" ? undefined : Number(e.target.value);
-                onUpdateRoom(room.name, {
-                  setpointC: fromDisplayTemperature(project.region, raw),
-                });
-              }}
-            />
+            {exportMode ? (
+              <DisplayValue>
+                {toDisplayTemperature(project.region, room.setpointC)}
+              </DisplayValue>
+            ) : (
+              <input
+                type="number"
+                className="w-full border border-slate-300 rounded-md px-3 py-2"
+                value={
+                  toDisplayTemperature(project.region, room.setpointC) ?? ""
+                }
+                onChange={(e) => {
+                  const raw =
+                    e.target.value === "" ? undefined : Number(e.target.value);
+                  onUpdateRoom(room.name, {
+                    setpointC: fromDisplayTemperature(project.region, raw),
+                  });
+                }}
+              />
+            )}
           </Field>
 
           {/* Length */}
           <Field label={`Length (${lenLabel})`}>
-            <input
-              type="number"
-              className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={toDisplayLength(project.region, room.length_m) ?? ""}
-              onChange={(e) => {
-                const raw =
-                  e.target.value === "" ? undefined : Number(e.target.value);
-                onUpdateRoom(room.name, {
-                  length_m: fromDisplayLength(project.region, raw),
-                });
-              }}
-            />
+            {exportMode ? (
+              <DisplayValue>
+                {toDisplayLength(project.region, room.length_m)}
+              </DisplayValue>
+            ) : (
+              <input
+                type="number"
+                className="w-full border border-slate-300 rounded-md px-3 py-2"
+                value={toDisplayLength(project.region, room.length_m) ?? ""}
+                onChange={(e) => {
+                  const raw =
+                    e.target.value === "" ? undefined : Number(e.target.value);
+                  onUpdateRoom(room.name, {
+                    length_m: fromDisplayLength(project.region, raw),
+                  });
+                }}
+              />
+            )}
           </Field>
 
           {/* Width */}
           <Field label={`Width (${lenLabel})`}>
-            <input
-              type="number"
-              className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={toDisplayLength(project.region, room.width_m) ?? ""}
-              onChange={(e) => {
-                const raw =
-                  e.target.value === "" ? undefined : Number(e.target.value);
-                onUpdateRoom(room.name, {
-                  width_m: fromDisplayLength(project.region, raw),
-                });
-              }}
-            />
+            {exportMode ? (
+              <DisplayValue>
+                {toDisplayLength(project.region, room.width_m)}
+              </DisplayValue>
+            ) : (
+              <input
+                type="number"
+                className="w-full border border-slate-300 rounded-md px-3 py-2"
+                value={toDisplayLength(project.region, room.width_m) ?? ""}
+                onChange={(e) => {
+                  const raw =
+                    e.target.value === "" ? undefined : Number(e.target.value);
+                  onUpdateRoom(room.name, {
+                    width_m: fromDisplayLength(project.region, raw),
+                  });
+                }}
+              />
+            )}
           </Field>
 
           {/* Height */}
           <Field label={`Height (${lenLabel})`}>
-            <input
-              type="number"
-              className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={toDisplayLength(project.region, room.height_m) ?? ""}
-              onChange={(e) => {
-                const raw =
-                  e.target.value === "" ? undefined : Number(e.target.value);
-                onUpdateRoom(room.name, {
-                  height_m: fromDisplayLength(project.region, raw),
-                });
-              }}
-            />
+            {exportMode ? (
+              <DisplayValue>
+                {toDisplayLength(project.region, room.height_m)}
+              </DisplayValue>
+            ) : (
+              <input
+                type="number"
+                className="w-full border border-slate-300 rounded-md px-3 py-2"
+                value={toDisplayLength(project.region, room.height_m) ?? ""}
+                onChange={(e) => {
+                  const raw =
+                    e.target.value === "" ? undefined : Number(e.target.value);
+                  onUpdateRoom(room.name, {
+                    height_m: fromDisplayLength(project.region, raw),
+                  });
+                }}
+              />
+            )}
           </Field>
 
           {/* Exterior Wall */}
           <Field label={`Exterior Wall (${lenLabel})`}>
-            <input
-              type="number"
-              className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={toDisplayLength(project.region, room.exteriorLen_m) ?? ""}
-              onChange={(e) => {
-                const raw =
-                  e.target.value === "" ? undefined : Number(e.target.value);
-                onUpdateRoom(room.name, {
-                  exteriorLen_m: fromDisplayLength(project.region, raw),
-                });
-              }}
-            />
+            {exportMode ? (
+              <DisplayValue>
+                {toDisplayLength(project.region, room.exteriorLen_m)}
+              </DisplayValue>
+            ) : (
+              <input
+                type="number"
+                className="w-full border border-slate-300 rounded-md px-3 py-2"
+                value={
+                  toDisplayLength(project.region, room.exteriorLen_m) ?? ""
+                }
+                onChange={(e) => {
+                  const raw =
+                    e.target.value === "" ? undefined : Number(e.target.value);
+                  onUpdateRoom(room.name, {
+                    exteriorLen_m: fromDisplayLength(project.region, raw),
+                  });
+                }}
+              />
+            )}
           </Field>
 
           {/* Windows */}
           <Field label={`Windows (${areaLabel})`}>
-            <input
-              type="number"
-              className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={toDisplayArea(project.region, room.windowArea_m2) ?? ""}
-              onChange={(e) => {
-                const raw =
-                  e.target.value === "" ? undefined : Number(e.target.value);
-                onUpdateRoom(room.name, {
-                  windowArea_m2: fromDisplayArea(project.region, raw),
-                });
-              }}
-            />
+            {exportMode ? (
+              <DisplayValue>
+                {toDisplayArea(project.region, room.windowArea_m2)}
+              </DisplayValue>
+            ) : (
+              <input
+                type="number"
+                className="w-full border border-slate-300 rounded-md px-3 py-2"
+                value={toDisplayArea(project.region, room.windowArea_m2) ?? ""}
+                onChange={(e) => {
+                  const raw =
+                    e.target.value === "" ? undefined : Number(e.target.value);
+                  onUpdateRoom(room.name, {
+                    windowArea_m2: fromDisplayArea(project.region, raw),
+                  });
+                }}
+              />
+            )}
           </Field>
 
           {/* Doors */}
           <Field label={`Doors (${areaLabel})`}>
-            <input
-              type="number"
-              className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={toDisplayArea(project.region, room.doorArea_m2) ?? ""}
-              onChange={(e) => {
-                const raw =
-                  e.target.value === "" ? undefined : Number(e.target.value);
-                onUpdateRoom(room.name, {
-                  doorArea_m2: fromDisplayArea(project.region, raw),
-                });
-              }}
-            />
+            {exportMode ? (
+              <DisplayValue>
+                {toDisplayArea(project.region, room.doorArea_m2)}
+              </DisplayValue>
+            ) : (
+              <input
+                type="number"
+                className="w-full border border-slate-300 rounded-md px-3 py-2"
+                value={toDisplayArea(project.region, room.doorArea_m2) ?? ""}
+                onChange={(e) => {
+                  const raw =
+                    e.target.value === "" ? undefined : Number(e.target.value);
+                  onUpdateRoom(room.name, {
+                    doorArea_m2: fromDisplayArea(project.region, raw),
+                  });
+                }}
+              />
+            )}
           </Field>
 
           {/* Joist Spacing */}
           <Field label="Joist Spacing">
-            <select
-              className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={room.joistSpacing ?? ""}
-              onChange={(e) =>
-                onUpdateRoom(room.name, {
-                  joistSpacing: Number(e.target.value) as JoistSpacingOption,
-                })
-              }
-            >
-              <option value="">Select</option>
-              <option value={12}>12" (300 mm)</option>
-              <option value={16}>16" (400 mm)</option>
-              <option value={19}>19" (488 mm)</option>
-              <option value={24}>24" (600 mm)</option>
-            </select>
+            {exportMode ? (
+              <DisplayValue>
+                {room.joistSpacing}" ({Math.round(room.joistSpacing * 25.4)} mm)
+              </DisplayValue>
+            ) : (
+              <select
+                className="w-full border border-slate-300 rounded-md px-3 py-2"
+                value={room.joistSpacing ?? ""}
+                onChange={(e) =>
+                  onUpdateRoom(room.name, {
+                    joistSpacing: Number(e.target.value) as JoistSpacingOption,
+                  })
+                }
+              >
+                <option value={12}>12" (300 mm)</option>
+                <option value={16}>16" (400 mm)</option>
+                <option value={19}>19" (488 mm)</option>
+                <option value={24}>24" (600 mm)</option>
+              </select>
+            )}
           </Field>
 
           {/* Floor Cover */}
           <Field label="Floor Cover">
-            <select
-              className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={room.floorCover ?? ""}
-              onChange={(e) =>
-                onUpdateRoom(room.name, {
-                  floorCover: e.target.value as FloorCoverKey,
-                })
-              }
-            >
-              <option value="">Select</option>
-              <option value="tile_stone">Tile / Stone</option>
-              <option value="vinyl_lvt">Vinyl / LVT</option>
-              <option value="laminate">Laminate</option>
-              <option value="engineered_wood">Engineered Wood</option>
-              <option value="solid_wood">Solid Wood</option>
-              <option value="carpet_low_pad">Carpet (Low Pad)</option>
-              <option value="carpet_high_pad">Carpet (High Pad)</option>
-            </select>
+            {exportMode ? (
+              <DisplayValue>{room.floorCover}</DisplayValue>
+            ) : (
+              <select
+                className="w-full border border-slate-300 rounded-md px-3 py-2"
+                value={room.floorCover ?? ""}
+                onChange={(e) =>
+                  onUpdateRoom(room.name, {
+                    floorCover: e.target.value as FloorCoverKey,
+                  })
+                }
+              >
+                <option value="tile_stone">Tile / Stone</option>
+                <option value="vinyl_lvt">Vinyl / LVT</option>
+                <option value="laminate">Laminate</option>
+                <option value="engineered_wood">Engineered Wood</option>
+                <option value="solid_wood">Solid Wood</option>
+                <option value="carpet_low_pad">Carpet (Low Pad)</option>
+                <option value="carpet_high_pad">Carpet (High Pad)</option>
+              </select>
+            )}
           </Field>
-
           {/* Install Method */}
           <Field label="Install Method">
-            <select
-              className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={room.installMethod ?? ""}
-              onChange={(e) =>
-                onUpdateRoom(room.name, {
-                  installMethod: e.target.value as InstallMethod,
-                })
-              }
-            >
-              <option value="">Select</option>
+            {exportMode ? (
+              <DisplayValue>
+                {INSTALL_METHOD_OPTIONS.find(
+                  (opt) => opt.value === room.installMethod
+                )?.label || "—"}
+              </DisplayValue>
+            ) : (
+              <select
+                className="w-full border border-slate-300 rounded-md px-3 py-2"
+                value={room.installMethod ?? ""}
+                onChange={(e) => {
+                  const value = e.target.value as InstallMethod;
 
-              {INSTALL_METHOD_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+                  onUpdateRoom(room.name, {
+                    installMethod: value,
+                    floorOnGround: value === "INSLAB",
+                  });
+                }}
+              >
+                {INSTALL_METHOD_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+          <Field label={`Floor On Ground`}>
+            {exportMode ? (
+              <DisplayValue>
+                {room.floorOnGround ? "Yes — floor on ground" : "No"}
+              </DisplayValue>
+            ) : (
+              <label className="flex items-center gap-2 mt-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(room.floorOnGround)}
+                  onChange={(e) =>
+                    onUpdateRoom(room.name, {
+                      floorOnGround: e.target.checked,
+                    })
+                  }
+                  style={{ cursor: "pointer" }}
+                  className="h-4 w-4 accent-teal-600"
+                />
+                <span className="text-sm text-slate-700 select-none">
+                  Yes — floor on ground
+                </span>
+              </label>
+            )}
           </Field>
         </div>
 
@@ -268,12 +476,9 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             )?.toFixed(2)}{" "}
             {uiUnits.area}
           </div>
-          <button
-            className="text-sm text-red-600 hover:underline"
-            onClick={() => onRemoveRoom(room.name)}
-          >
-            Remove room
-          </button>
+          {!exportMode && (
+            <button onClick={() => onRemoveRoom(room.name)}>Remove room</button>
+          )}
         </div>
       </SectionCard>
 
@@ -374,7 +579,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
 
             {ultra.materials.topdown_ultra_clips != null && (
               <>
-                <div className="text-slate-600">Top-Down Ultra-Clips</div>
+                <div className="text-slate-600">Ultra-Clip</div>
                 <div className="text-right">
                   {ultra.materials.topdown_ultra_clips}
                 </div>
@@ -383,15 +588,16 @@ export const RoomCard: React.FC<RoomCardProps> = ({
 
             {ultra.materials.topdown_uc1212 != null && (
               <>
-                <div className="text-slate-600">UC1212 Clips</div>
+                <div className="text-slate-600">UC1212</div>
                 <div className="text-right">
                   {ultra.materials.topdown_uc1212}
                 </div>
               </>
             )}
+
             {ultra.materials.topdown_uc1234 != null && (
               <>
-                <div className="text-slate-600">UC1234 Clips</div>
+                <div className="text-slate-600">UC1234</div>
                 <div className="text-right">
                   {ultra.materials.topdown_uc1234}
                 </div>
@@ -402,7 +608,10 @@ export const RoomCard: React.FC<RoomCardProps> = ({
               <>
                 <div className="text-slate-600">Ultra-Fin Spacing (C-C)</div>
                 <div className="text-right font-semibold">
-                  {ultra.selection.ultraFinSpacing_mm} mm
+                  {formatSpacing(
+                    project.region,
+                    ultra.selection.ultraFinSpacing_mm
+                  )}
                 </div>
               </>
             )}
@@ -411,7 +620,18 @@ export const RoomCard: React.FC<RoomCardProps> = ({
               <>
                 <div className="text-slate-600">Tubing Spacing (C-C)</div>
                 <div className="text-right font-semibold">
-                  {ultra.selection.tubingSpacing_mm} mm
+                  {formatSpacing(
+                    project.region,
+                    ultra.selection.tubingSpacing_mm
+                  )}
+                </div>
+              </>
+            )}
+            {ultra.selection.spacingDisplayText && (
+              <>
+                <div className="text-slate-600">Tubing Spacing (C-C)</div>
+                <div className="text-right font-semibold">
+                  {ultra.selection.spacingDisplayText}
                 </div>
               </>
             )}
@@ -425,11 +645,19 @@ export const RoomCard: React.FC<RoomCardProps> = ({
         </div>
       </SectionCard>
       {/* -------- Layout Visualization -------- */}
-      <SectionCard title="Layout Visualization">
-        <div className="w-full h-96 border border-slate-300 rounded-md overflow-auto">
-          <FloorLayoutSvg layout={layout} />
-        </div>
-      </SectionCard>
+      {layout && sidebarImages?.profiles && (
+        <SectionCard title="Layout Visualization">
+          <div className="flex flex-row items-start gap-4">
+            <div className="flex-1 min-h-[320px]">
+              <FloorLayoutSvg layout={layout} />
+            </div>
+
+            <div className="flex-shrink-0">
+              <RightSidebar images={sidebarImages} />
+            </div>
+          </div>
+        </SectionCard>
+      )}
     </div>
   );
 };

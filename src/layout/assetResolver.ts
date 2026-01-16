@@ -1,7 +1,12 @@
 import { InstallMethod } from "../models/projectTypes";
 import { Joist, LoadMode, Direction, JOIST_MM } from "./blockConstants";
 
-export function finBlockAsset(joist: Joist, load: LoadMode, dir: Direction) {
+export function finBlockAsset(
+  joist: Joist,
+  load: LoadMode,
+  dir: Direction,
+  method: InstallMethod
+) {
   return `/assets/diagrams/FB_${joist}-${JOIST_MM[joist]}_${load}_${dir}.svg`;
 }
 
@@ -10,7 +15,8 @@ export function pipeBridgeAsset(
   pos: "TL" | "TR" | "BL" | "BR",
   method: InstallMethod
 ) {
-  if (method === "OPEN_WEB" || method === "DRILLING") return null;
+  if (method === "OPEN_WEB" || method === "DRILLING")
+    return null;
 
   // 24" joists use CENTER / SIDE variants
   if (joist === 24) {
@@ -37,4 +43,3 @@ export function endCapAsset(
     ? `/assets/diagrams/EC_${joist}-${JOIST_MM[joist]}_${pos}.svg`
     : null;
 }
-

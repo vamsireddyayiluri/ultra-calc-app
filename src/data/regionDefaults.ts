@@ -9,7 +9,6 @@ export const REGION_DEFAULTS: Record<Region, RegionDefaults> = {
     psiAllowance_W_per_K: 0.04,
     mechVent_m3_per_h: 0.4,
     infiltrationACH: 0.25,
-    floorOnGround: true,
   },
   US: {
     standardsMode: "ASHRAE",
@@ -18,7 +17,6 @@ export const REGION_DEFAULTS: Record<Region, RegionDefaults> = {
     psiAllowance_W_per_K: 0.05,
     mechVent_m3_per_h: 0.5,
     infiltrationACH: 0.35,
-    floorOnGround: true,
   },
   EU: {
     standardsMode: "EN_ISO_13790",
@@ -27,7 +25,6 @@ export const REGION_DEFAULTS: Record<Region, RegionDefaults> = {
     psiAllowance_W_per_K: 0.035,
     mechVent_m3_per_h: 0.45,
     infiltrationACH: 0.3,
-    floorOnGround: true,
   },
   CA_METRIC: {
     standardsMode: "CSA_F280",
@@ -36,7 +33,6 @@ export const REGION_DEFAULTS: Record<Region, RegionDefaults> = {
     psiAllowance_W_per_K: 0.045,
     mechVent_m3_per_h: 0.4, 
     infiltrationACH: 0.3,
-    floorOnGround: true,
   },
 
   CA_IMPERIAL: {
@@ -46,6 +42,5 @@ export const REGION_DEFAULTS: Record<Region, RegionDefaults> = {
     psiAllowance_W_per_K: 0.045,
     mechVent_m3_per_h: 0.4, 
     infiltrationACH: 0.3,
-    floorOnGround: true,
   },
 };

@@ -12,6 +12,7 @@ import {
   ProjectSettings,
   MaterialUValues,
 } from "../models/projectTypes";
+import { determineMode, toBTU } from "./ultraCalcLocked";
 
 /* ------------------------------------------------------------
    1. Water temperature interpolation
@@ -135,12 +136,9 @@ function thermalBridge_W(settings: ProjectSettings, dT: number): number {
   return (settings.psiAllowance_W_per_K ?? 0) * dT;
 }
 
-function groundLoss_W(
-  settings: ProjectSettings,
-  r: RoomInput,
-  dT: number
-): number {
-  if (!settings.floorOnGround) return 0;
+function groundLoss_W(r: RoomInput, dT: number): number {
+  console.log(r.floorOnGround);
+  if (!r.floorOnGround) return 0;
   return 0.1 * roomArea_m2(r) * dT;
 }
 
@@ -177,7 +175,7 @@ export function calculateRoom(
   const qFabric = fabricLoss_W(r, U, dT);
   const qVent = ventilationLoss_W(r, settings, achOrN, dT);
   const qPsi = thermalBridge_W(settings, dT);
-  const qGround = groundLoss_W(settings, r, dT);
+  const qGround = groundLoss_W(r, dT);
 
   const qBefore = qFabric + qVent + qPsi + qGround;
   const qAfter = applySafetyFactors(qBefore, settings);
@@ -187,9 +185,24 @@ export function calculateRoom(
 
   const floorR = getFloorCoverR(r);
 
-  let waterTemp_C = interpWaterC(load_W_per_m2);
-  if (typeof floorR === "number") {
-    waterTemp_C += Math.min(12, 25 * floorR);
+  let waterTemp_C: number;
+
+  if (r.installMethod === "INSLAB") {
+    const loadBTU = toBTU({
+      unit: "W_M2",
+      value: load_W_per_m2,
+    });
+    const mode = determineMode(loadBTU);
+    waterTemp_C =
+      mode === "LL"
+        ? ((100 - 32) * 5) / 9 
+        : ((120 - 32) * 5) / 9; 
+  } else {
+    waterTemp_C = interpWaterC(load_W_per_m2);
+
+    if (typeof floorR === "number") {
+      waterTemp_C += Math.min(12, 25 * floorR);
+    }
   }
 
   const warnings: string[] = [];

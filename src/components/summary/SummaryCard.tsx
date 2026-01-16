@@ -4,6 +4,7 @@ import { ProjectSettings, ProjectSummary } from "../../models/projectTypes";
 import { SummaryRow } from "./SummaryRow";
 import { getUIUnits } from "../../helpers/updateUiLabels";
 import { formatProjectSummary } from "../../utils/formatProjectSummary";
+import { formatSpacing } from "../../utils/formatResults";
 
 interface SummaryCardProps {
   project: ProjectSettings;
@@ -51,7 +52,10 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
             value={
               summary.ultraFinSpacing_mm === "VARIES"
                 ? "Varies by room"
-                : `${summary.ultraFinSpacing_mm} mm`
+                : formatSpacing(
+                    project.region,
+                    Number(summary.ultraFinSpacing_mm)
+                  )
             }
           />
         )}
@@ -62,7 +66,10 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
             value={
               summary.tubingSpacing_mm === "VARIES"
                 ? "Varies by room"
-                : `${summary.tubingSpacing_mm} mm`
+                : formatSpacing(
+                    project.region,
+                    Number(summary.tubingSpacing_mm)
+                  )
             }
           />
         )}

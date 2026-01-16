@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from "react";
+import { ProjectExportView } from "../components/export/ProjectExportView";
+
+import React, { useRef, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { uid } from "../utils/uid";
 import {
@@ -32,7 +34,7 @@ export default function ProjectPage() {
   >(null);
   const [isSaving, setIsSaving] = useState(false);
   const { showMessage } = useSnackbar();
-  const [showActionsDropdown, setShowActionsDropdown] = useState(false);
+  const exportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -55,7 +57,6 @@ export default function ProjectPage() {
           psiAllowance_W_per_K: 0.04,
           mechVent_m3_per_h: 0.4,
           infiltrationACH: 0.25,
-          floorOnGround: true,
           glazing: "double",
           rooms: [],
           customUOverrides: getDefaultUValues({
@@ -71,26 +72,18 @@ export default function ProjectPage() {
     fetchData();
   }, [id]);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (!(event.target as HTMLElement).closest(".actions-dropdown")) {
-        setShowActionsDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   const updateProject = (patch: Partial<ProjectSettings>) => {
     setProject((prev) => ({ ...prev, ...patch }));
   };
 
   // ➕ Add Room
   const addRoom = () => {
+    console.log("addRoom 1");
+
     if (!project) return;
 
     const newRoom: RoomInput = {
-      id: "",
+      id: uid(),
       name: `Room ${project.rooms.length + 1}`,
       length_m: 0,
       width_m: 0,
@@ -104,10 +97,12 @@ export default function ProjectPage() {
       joistSpacing: 16, // Default joist spacing
       floorCover: "tile_stone", // Default floor type
       installMethod: "DRILLING", // Default install method
+      floorOnGround: false,
     };
-
+    console.log("addRoom 2, newRoom", newRoom);
     setProject({ ...project, rooms: [...project.rooms, newRoom] });
   };
+  console.log("project", project);
 
   const updateRoom = (roomName: string, patch: Partial<RoomInput>) => {
     if (!project) return;
@@ -121,11 +116,6 @@ export default function ProjectPage() {
     if (!project) return;
     const updatedRooms = project.rooms.filter((r) => r.name !== roomName);
     setProject({ ...project, rooms: updatedRooms });
-  };
-
-  const handleDeleteClick = () => {
-    setShowDeleteDialog(true);
-    setShowActionsDropdown(false);
   };
 
   const summary: ProjectSummary | null = useProjectSummary(
@@ -172,113 +162,113 @@ export default function ProjectPage() {
     );
 
   return (
-    <AppLayout
-      title="Ultra-Calc"
-      subtitle="Room-by-room heat loss calculation and project management for HVAC professionals."
-    >
-      <main className="p-4 sm:p-4 max-w-7xl mx-auto min-h-screen bg-white">
-        {/* Toolbar: Back + Units + Save/Delete */}
-        <div
-          className="flex flex-col sm:flex-row sm:items-center sm:justify-between 
+    <>
+      <AppLayout
+        title="Ultra-Calc"
+        subtitle="Room-by-room heat loss calculation and project management for HVAC professionals."
+      >
+        <main className="p-4 sm:p-4 max-w-7xl mx-auto min-h-screen bg-white">
+          {/* Toolbar: Back + Units + Save/Delete */}
+          <div
+            className="flex flex-col sm:flex-row sm:items-center sm:justify-between 
       gap-4 sm:gap-6 mb-6 bg-white border-b border-slate-100 pb-4 sm:pb-0"
-        >
-          {/* LEFT SIDE */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
-            <button
-              onClick={() => navigate("/")}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2 
+          >
+            {/* LEFT SIDE */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
+              <button
+                onClick={() => navigate("/")}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 
     rounded-lg text-sm font-medium bg-slate-100 text-slate-700 
     hover:bg-slate-200 transition-colors whitespace-nowrap min-w-fit
     focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/30"
-            >
-              ← Back
-            </button>
+              >
+                ← Back
+              </button>
 
-            {/* Units Switcher */}
-           
-          </div>
+              {/* Units Switcher */}
+            </div>
 
-          {/* RIGHT SIDE: Actions */}
-          <div className="flex flex-row justify-end items-center gap-3 w-full sm:w-auto flex-wrap sm:flex-nowrap">
-            <button
-              onClick={handleSaveProject}
-              disabled={isSaving}
-              className={`inline-flex justify-center items-center gap-2 px-5 py-2.5 
+            {/* RIGHT SIDE: Actions */}
+            <div className="flex flex-row justify-end items-center gap-3 w-full sm:w-auto flex-wrap sm:flex-nowrap">
+              <button
+                onClick={handleSaveProject}
+                disabled={isSaving}
+                className={`inline-flex justify-center items-center gap-2 px-5 py-2.5 
       rounded-lg text-sm font-semibold
       ${isSaving ? "bg-gray-400" : "bg-[#1E3A8A] hover:bg-[#17306f]"} 
       text-white transition-colors shadow-sm
       focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/30`}
-            >
-              {isSaving ? "Saving..." : "Save Project"}
-            </button>
-
-            <div className="relative inline-block text-left actions-dropdown">
-              <button
-                onClick={() => setShowActionsDropdown((prev) => !prev)}
-                className="inline-flex justify-center items-center gap-2 px-5 py-2.5 
-      rounded-lg text-sm font-semibold 
-      bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors
-      focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/30"
               >
-                Actions ▾
+                {isSaving ? "Saving..." : "Save Project"}
+              </button>
+              {/* Export PDF */}
+              <button
+                onClick={() => exportPDF(exportRef)}
+                className="inline-flex justify-center items-center gap-2 px-5 py-2.5 
+    rounded-lg text-sm font-semibold 
+    bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors
+    focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/30"
+              >
+                Export PDF
               </button>
 
-              {showActionsDropdown && (
-                <div className="absolute right-0 mt-2 w-48 origin-top-right bg-white border border-slate-200 rounded-md shadow-lg z-50">
-                  <div className="py-1">
-                    <button
-                      onClick={() => {
-                        exportPDF(project);
-                        setShowActionsDropdown(false);
-                      }}
-                      className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                    >
-                      Export PDF
-                    </button>
-                    {project.id && (
-                      <button
-                        onClick={handleDeleteClick}
-                        className="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-100"
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </div>
-                </div>
+              {/* Delete */}
+              {project.id && (
+                <button
+                  onClick={() => setShowDeleteDialog(true)}
+                  className="inline-flex justify-center items-center gap-2 px-5 py-2.5 
+      rounded-lg text-sm font-semibold 
+      bg-red-50 text-red-700 hover:bg-red-100 transition-colors
+      focus:outline-none focus:ring-2 focus:ring-red-300"
+                >
+                  Delete
+                </button>
               )}
             </div>
           </div>
-        </div>
 
-        {/* Project Editor */}
-        <div className="w-full overflow-x-auto">
-          <ProjectEditor
-            project={project}
-            rooms={project.rooms}
-            onUpdateProject={updateProject}
-            onUpdateRoom={updateRoom}
-            onAddRoom={addRoom}
-            onRemoveRoom={removeRoom}
-            summary={summary}
+          {/* Project Editor */}
+          <div className="w-full overflow-x-auto">
+            <ProjectEditor
+              project={project}
+              rooms={project.rooms}
+              onUpdateProject={updateProject}
+              onUpdateRoom={updateRoom}
+              onAddRoom={addRoom}
+              onRemoveRoom={removeRoom}
+              summary={summary}
+            />
+          </div>
+        </main>
+
+        {showDeleteDialog && (
+          <ConfirmDialog
+            title="Delete Project"
+            message="Are you sure you want to permanently delete this project?"
+            confirmText="Delete"
+            cancelText="Cancel"
+            onCancel={() => setShowDeleteDialog(false)}
+            onConfirm={async () => {
+              if (!project?.id) return;
+              const success = await deleteProjectFromDb(
+                project.id,
+                showMessage
+              );
+              setShowDeleteDialog(false);
+              if (success) navigate("/");
+            }}
           />
-        </div>
-      </main>
-
-      {showDeleteDialog && (
-        <ConfirmDialog
-          title="Delete Project"
-          message="Are you sure you want to permanently delete this project?"
-          confirmText="Delete"
-          cancelText="Cancel"
-          onCancel={() => setShowDeleteDialog(false)}
-          onConfirm={async () => {
-            if (!project?.id) return;
-            const success = await deleteProjectFromDb(project.id, showMessage);
-            setShowDeleteDialog(false);
-            if (success) navigate("/");
-          }}
+        )}
+      </AppLayout>
+      {/* Hidden Export View for PDF */}
+      <div className="fixed left-[-9999px] top-0">
+        <ProjectExportView
+          ref={exportRef}
+          project={project}
+          rooms={project.rooms}
+          summary={summary}
         />
-      )}
-    </AppLayout>
+      </div>
+    </>
   );
 }

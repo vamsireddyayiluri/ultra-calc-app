@@ -2,7 +2,7 @@ import { Region, RoomResults } from "../models/projectTypes";
 import { W_to_Btuh, Wpm2_to_Btuhft2, m2_to_ft2, C_to_F } from "./conversions";
 
 export interface DisplayRoomResults {
-  totalHeat: string;
+totalHeat: string
   loadDensity: string;
 
   qFabric: string;

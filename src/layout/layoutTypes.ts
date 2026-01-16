@@ -6,5 +6,6 @@ export interface Tile {
   y: number;
   w: number;
   h: number;
+  assetBase64?: string;
   asset: string;
 }

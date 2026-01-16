@@ -50,7 +50,6 @@ export interface ProjectSettings {
   // new psi name from new file (psiAllowance_W_per_K) but keep old
   psiAllowance_W_per_K?: number; // new
 
-  floorOnGround?: boolean;
   customUOverrides?: Partial<MaterialUValues>;
 
   // ventilation (merged)
@@ -71,7 +70,6 @@ export interface RegionDefaults {
   psiAllowance_W_per_K: number;
   mechVent_m3_per_h: number;
   infiltrationACH: number;
-  floorOnGround: boolean;
 }
 
 export interface PeriodPreset {
@@ -117,6 +115,7 @@ export interface RoomInput {
   installMethod: InstallMethod;
   joistSpacing?: JoistSpacingOption;
   floorCover?: FloorCoverKey;
+  floorOnGround?: boolean;
 }
 
 // models/projectTypes.ts

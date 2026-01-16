@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="s" data-name="PROFILE_16-400_OpenWeb" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 104 64">
+  <defs>
+    <style>
+      .v, .w, .x, .y, .z {
+        fill: none;
+      }
+
+      .v, .x {
+        stroke: #666;
+      }
+
+      .v, .x, .y, .z {
+        stroke-miterlimit: 10;
+      }
+
+      .aa {
+        fill: #8dc63f;
+      }
+
+      .ab {
+        fill: #fff;
+      }
+
+      .ac {
+        fill: #dfe0e1;
+      }
+
+      .ad {
+        fill: #666;
+      }
+
+      .ae {
+        fill: #cccecf;
+      }
+
+      .x, .y {
+        stroke-linecap: round;
+      }
+
+      .af {
+        fill: #999;
+      }
+
+      .y {
+        stroke: gray;
+      }
+
+      .z {
+        stroke: #ec1c24;
+        stroke-width: 4px;
+      }
+    </style>
+  </defs>
+  <line class="y" x1="62.29" y1="34.34" x2="62.29" y2="27.34"/>
+  <line class="y" x1="40.96" y1="34.34" x2="40.96" y2="27.34"/>
+  <line class="z" x1="86.35" y1="23.84" x2="17.13" y2="23.84"/>
+  <rect class="ac" x="24.63" y="14" width="3" height="40"/>
+  <rect class="ac" x="75.85" y="14" width="3" height="40"/>
+  <g>
+    <g>
+      <rect class="ad" x="33.89" y="20.34" width="34" height="7" rx="1" ry="1"/>
+      <rect class="ab" x="34.89" y="21.34" width="32" height="5"/>
+    </g>
+    <line class="v" x1="66.89" y1="23.84" x2="34.89" y2="23.84"/>
+    <g>
+      <line class="x" x1="63.67" y1="22.59" x2="66.41" y2="27.34"/>
+      <line class="x" x1="60.66" y1="22.59" x2="63.41" y2="27.34"/>
+      <line class="x" x1="57.66" y1="22.59" x2="60.41" y2="27.34"/>
+      <line class="x" x1="54.66" y1="22.59" x2="57.41" y2="27.34"/>
+      <line class="x" x1="51.66" y1="22.59" x2="54.4" y2="27.34"/>
+      <line class="x" x1="48.66" y1="22.59" x2="51.4" y2="27.34"/>
+      <line class="x" x1="45.66" y1="22.59" x2="48.4" y2="27.34"/>
+      <line class="x" x1="42.66" y1="22.59" x2="45.4" y2="27.34"/>
+      <line class="x" x1="39.66" y1="22.59" x2="42.4" y2="27.34"/>
+      <line class="x" x1="36.66" y1="22.59" x2="39.4" y2="27.34"/>
+    </g>
+  </g>
+  <rect class="w" x=".06" width="103.87" height="64"/>
+  <g>
+    <g>
+      <path class="ad" d="M18.57,25.34c-.52,0-.94-.42-.94-.94v-1.69c0-.39.32-.71.71-.71h2.59c.39,0,.71.32.71.71v1.69c0,.52-.42.94-.94.94h-2.12Z"/>
+      <path class="aa" d="M18.34,22.5h2.59c.11,0,.21.09.21.21v1.69c0,.24-.2.44-.44.44h-2.12c-.24,0-.44-.2-.44-.44v-1.69c0-.11.09-.21.21-.21Z"/>
+    </g>
+    <g>
+      <path class="ad" d="M18.34,22.5c-.39,0-.71-.32-.71-.71v-4.36c0-.52.42-.94.94-.94h2.12c.52,0,.94.42.94.94v4.36c0,.39-.32.71-.71.71h-2.59Z"/>
+      <path class="aa" d="M20.92,22h-2.59c-.11,0-.21-.09-.21-.21v-4.36c0-.24.2-.44.44-.44h2.12c.24,0,.44.2.44.44v4.36c0,.11-.09.21-.21.21Z"/>
+    </g>
+  </g>
+  <rect class="ae" x="21.63" y="14" width="3" height="6"/>
+  <rect class="ae" x="21.63" y="47.98" width="3" height="6"/>
+  <rect class="ae" x="78.85" y="14" width="3" height="6"/>
+  <rect class="ae" x="78.85" y="47.98" width="3" height="6"/>
+  <rect class="af" x="21.63" y="10" width="60.22" height="4"/>
+</svg>

@@ -19,7 +19,7 @@ export function buildLayout(input: LayoutInput) {
     input.joist,
     input.load
   );
-  
+
   const connectorFactorByJoist: Record<number, number> = {
     12: 0.94,
     16: 1,
@@ -52,7 +52,7 @@ export function buildLayout(input: LayoutInput) {
         y: r * block.h,
         w: block.w,
         h: block.h,
-        asset: finBlockAsset(input.joist, input.load, dir),
+        asset: finBlockAsset(input.joist, input.load, dir, input.method),
       });
     }
   }
@@ -102,7 +102,6 @@ export function buildLayout(input: LayoutInput) {
   });
 
   for (let c = 0; c < cols; c++) {
-    
     const isDown = c % 2 === 0;
 
     // ---- TOP CONNECTION ----
@@ -156,15 +155,25 @@ export function buildLayout(input: LayoutInput) {
       });
     }
   }
-  // --- BOTTOM-RIGHT END BRIDGE ---
-  tiles.push({
-    type: "PB",
-    x: (cols - 1) * block.w + block.w / 2 - block.w / 2,
-    y: rows * block.h - block.h * 0.5,
-    w: block.w,
-    h: block.h,
-    asset: pipeBridgeAsset(input.joist, "BL", input.method),
-  });
+  if (cols % 2 === 0) {
+    tiles.push({
+      type: "PB",
+      x: (cols - 1) * block.w + block.w / 2 - block.w / 2,
+      y: rows * block.h - block.h * 0.5,
+      w: block.w,
+      h: block.h,
+      asset: pipeBridgeAsset(input.joist, "BL", input.method),
+    });
+  }else {
+    tiles.push({
+      type: "PB",
+      x: (cols - 1) * block.w + block.w / 2 - block.w / 2,
+      y: rows * block.h - block.h * 0.5,
+      w: block.w,
+      h: block.h,
+      asset: pipeBridgeAsset(input.joist, "BR", input.method),
+    });
+  }
 
   return {
     tiles,

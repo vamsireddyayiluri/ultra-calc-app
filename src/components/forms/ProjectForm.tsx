@@ -221,7 +221,6 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
             }}
             className="w-full border border-slate-300 rounded-md px-3 py-2"
           >
-            <option value="">Select region</option>
             {REGION_OPTIONS.map((o) => (
               <option key={o.key} value={o.key}>
                 {o.label}
@@ -270,7 +269,10 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
             step="0.5"
             required
             aria-required="true"
-            className="w-full border border-slate-300 rounded-md px-3 py-2"
+            placeholder="Coldest Design Day (Required)"
+            className="
+      w-full border border-slate-300 rounded-md px-3 py-2 placeholder-red-300
+    "
             value={
               toDisplayTemperature(project.region, project.outdoorTempC) ?? ""
             }
@@ -283,12 +285,6 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
               });
             }}
           />
-
-          {/* ✅ REQUIRED helper text (exact wording) */}
-          <p className="mt-1 text-xs text-slate-500">
-            Enter the coldest outdoor design temperature for your location. This
-            may vary by micro-climate.
-          </p>
         </Field>
 
         {/* Insulation Period */}
@@ -323,7 +319,6 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
               onUpdate({ glazing: e.target.value as GlazingType })
             }
           >
-            <option value="">Select</option>
             <option value="single">Single</option>
             <option value="double">Double</option>
             <option value="triple">Triple</option>
@@ -432,25 +427,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
               }
             )}
 
-            <Field
-              label={`Floor On Ground ${
-                isCustom("floorOnGround" as any) ? "(custom)" : ""
-              }`}
-            >
-              <label className="flex items-center gap-2 mt-1 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={Boolean(project.floorOnGround)}
-                  onChange={(e) =>
-                    onUpdate({ floorOnGround: e.target.checked })
-                  }
-                  className="cursor-pointer h-4 w-4 accent-teal-600"
-                />
-                <span className="text-sm text-slate-700 select-none">
-                  Yes — floor on ground
-                </span>
-              </label>
-            </Field>
+            
 
             {/* Custom U-values */}
             <div className="md:col-span-3 border-t border-slate-200 pt-3 mt-2">

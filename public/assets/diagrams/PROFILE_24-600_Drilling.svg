@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="m" data-name="PROFILE_24-600_Drilling" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 104 64">
+  <defs>
+    <style>
+      .v, .w, .x, .y, .z {
+        fill: none;
+      }
+
+      .v, .x {
+        stroke: #666;
+      }
+
+      .v, .x, .y, .z {
+        stroke-miterlimit: 10;
+      }
+
+      .aa {
+        fill: #fff;
+      }
+
+      .ab {
+        fill: #666;
+      }
+
+      .x, .y {
+        stroke-linecap: round;
+      }
+
+      .ac {
+        fill: #999;
+      }
+
+      .y {
+        stroke: gray;
+      }
+
+      .ad {
+        fill: #ccc;
+      }
+
+      .z {
+        stroke: #ec1c24;
+        stroke-width: 4px;
+      }
+    </style>
+  </defs>
+  <line class="y" x1="23.11" y1="21.5" x2="23.11" y2="28.5"/>
+  <line class="y" x1="44.44" y1="21.5" x2="44.44" y2="28.5"/>
+  <line class="y" x1="59.55" y1="21.5" x2="59.55" y2="28.5"/>
+  <line class="y" x1="80.88" y1="21.5" x2="80.88" y2="28.5"/>
+  <line class="z" x1="8.32" y1="32" x2="95.68" y2="32"/>
+  <rect class="ad" x="11.32" y="12" width="3" height="40"/>
+  <rect class="ad" x="89.68" y="12" width="3" height="40"/>
+  <rect class="ac" x="8.32" y="12" width="87.36" height="4"/>
+  <g>
+    <g>
+      <rect class="ab" x="16.77" y="28.5" width="34" height="7" rx="1" ry="1"/>
+      <rect class="aa" x="17.77" y="29.5" width="32" height="5"/>
+    </g>
+    <line class="v" x1="17.77" y1="32" x2="49.77" y2="32"/>
+    <g>
+      <line class="x" x1="21" y1="33.25" x2="18.25" y2="28.5"/>
+      <line class="x" x1="24" y1="33.25" x2="21.25" y2="28.5"/>
+      <line class="x" x1="27" y1="33.25" x2="24.26" y2="28.5"/>
+      <line class="x" x1="30" y1="33.25" x2="27.26" y2="28.5"/>
+      <line class="x" x1="33" y1="33.25" x2="30.26" y2="28.5"/>
+      <line class="x" x1="36" y1="33.25" x2="33.26" y2="28.5"/>
+      <line class="x" x1="39" y1="33.25" x2="36.26" y2="28.5"/>
+      <line class="x" x1="42" y1="33.25" x2="39.26" y2="28.5"/>
+      <line class="x" x1="45" y1="33.25" x2="42.26" y2="28.5"/>
+      <line class="x" x1="48.01" y1="33.25" x2="45.26" y2="28.5"/>
+    </g>
+  </g>
+  <g>
+    <g>
+      <rect class="ab" x="53.22" y="28.5" width="34" height="7" rx="1" ry="1"/>
+      <rect class="aa" x="54.22" y="29.5" width="32" height="5"/>
+    </g>
+    <line class="v" x1="54.22" y1="32" x2="86.22" y2="32"/>
+    <g>
+      <line class="x" x1="57.44" y1="33.25" x2="54.7" y2="28.5"/>
+      <line class="x" x1="60.44" y1="33.25" x2="57.7" y2="28.5"/>
+      <line class="x" x1="63.44" y1="33.25" x2="60.7" y2="28.5"/>
+      <line class="x" x1="66.44" y1="33.25" x2="63.7" y2="28.5"/>
+      <line class="x" x1="69.44" y1="33.25" x2="66.7" y2="28.5"/>
+      <line class="x" x1="72.44" y1="33.25" x2="69.7" y2="28.5"/>
+      <line class="x" x1="75.45" y1="33.25" x2="72.7" y2="28.5"/>
+      <line class="x" x1="78.45" y1="33.25" x2="75.7" y2="28.5"/>
+      <line class="x" x1="81.45" y1="33.25" x2="78.7" y2="28.5"/>
+      <line class="x" x1="84.45" y1="33.25" x2="81.71" y2="28.5"/>
+    </g>
+  </g>
+  <rect class="w" width="104" height="64"/>
+</svg>
