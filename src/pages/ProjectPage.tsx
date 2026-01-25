@@ -22,8 +22,11 @@ import { CircularProgress } from "@mui/material";
 import { projectSchema } from "../validations.ts/projectSchema";
 import { roomSchema } from "../validations.ts/roomSchema";
 import z from "zod";
-import { exportPDF } from "../utils/pdfExport";
+import { exportPDF, loadImageAsBase64 } from "../utils/pdfExport";
 import { getDefaultUValues } from "../utils/uDefaults";
+import { RoomDetailsExport } from "../components/export/RoomDetailsExport";
+import { RoomLayoutExport } from "../components/export/RoomLayoutExport";
+import { SummaryCard } from "../components/summary/SummaryCard";
 
 export default function ProjectPage() {
   const { id } = useParams<{ id?: string }>();
@@ -35,6 +38,22 @@ export default function ProjectPage() {
   const [isSaving, setIsSaving] = useState(false);
   const { showMessage } = useSnackbar();
   const exportRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement | null>(null);
+  const detailRefs = useRef<HTMLDivElement[]>([]);
+  const layoutRefs = useRef<HTMLDivElement[]>([]);
+  const summaryRef = useRef<HTMLDivElement | null>(null);
+  const [logoBase64, setLogoBase64] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  useEffect(() => {
+    const buildLogo = async () => {
+      const base64 = await loadImageAsBase64("/assets/diagrams/logo.PNG");
+
+      setLogoBase64(base64); // ✅ triggers re-render
+    };
+
+    buildLogo();
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -75,11 +94,29 @@ export default function ProjectPage() {
   const updateProject = (patch: Partial<ProjectSettings>) => {
     setProject((prev) => ({ ...prev, ...patch }));
   };
+  const handleExportPDF = async () => {
+    try {
+      setIsExporting(true);
+
+      await exportPDF(
+        headerRef.current,
+        detailRefs.current,
+        layoutRefs.current,
+        summaryRef.current,
+      );
+
+      showMessage("PDF downloaded successfully!", "success");
+    } catch (error) {
+      console.error("PDF export failed:", error);
+
+      showMessage("Failed to download PDF", "error");
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // ➕ Add Room
   const addRoom = () => {
-    console.log("addRoom 1");
-
     if (!project) return;
 
     const newRoom: RoomInput = {
@@ -99,15 +136,13 @@ export default function ProjectPage() {
       installMethod: "DRILLING", // Default install method
       floorOnGround: false,
     };
-    console.log("addRoom 2, newRoom", newRoom);
     setProject({ ...project, rooms: [...project.rooms, newRoom] });
   };
-  console.log("project", project);
 
   const updateRoom = (roomName: string, patch: Partial<RoomInput>) => {
     if (!project) return;
     const updatedRooms = project.rooms.map((r) =>
-      r.name === roomName ? { ...r, ...patch } : r
+      r.name === roomName ? { ...r, ...patch } : r,
     );
     setProject({ ...project, rooms: updatedRooms });
   };
@@ -120,7 +155,7 @@ export default function ProjectPage() {
 
   const summary: ProjectSummary | null = useProjectSummary(
     project?.rooms || [],
-    project || undefined
+    project || undefined,
   );
 
   const handleSaveProject = async () => {
@@ -203,13 +238,22 @@ export default function ProjectPage() {
               </button>
               {/* Export PDF */}
               <button
-                onClick={() => exportPDF(exportRef)}
-                className="inline-flex justify-center items-center gap-2 px-5 py-2.5 
-    rounded-lg text-sm font-semibold 
-    bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors
-    focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/30"
+                onClick={handleExportPDF}
+                disabled={isExporting}
+                className={`
+    inline-flex items-center justify-center gap-2
+    px-6 py-2.5 rounded-full
+    text-sm font-semibold
+    transition shadow-sm
+    focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/30
+    ${
+      isExporting
+        ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+        : "bg-slate-100 text-slate-800 hover:bg-slate-200"
+    }
+  `}
               >
-                Export PDF
+                {isExporting ? "Exporting..." : "Export PDF"}
               </button>
 
               {/* Delete */}
@@ -252,7 +296,7 @@ export default function ProjectPage() {
               if (!project?.id) return;
               const success = await deleteProjectFromDb(
                 project.id,
-                showMessage
+                showMessage,
               );
               setShowDeleteDialog(false);
               if (success) navigate("/");
@@ -261,13 +305,97 @@ export default function ProjectPage() {
         )}
       </AppLayout>
       {/* Hidden Export View for PDF */}
-      <div className="fixed left-[-9999px] top-0">
-        <ProjectExportView
-          ref={exportRef}
-          project={project}
-          rooms={project.rooms}
-          summary={summary}
-        />
+      <div style={{ position: "absolute", left: "-99999px", top: 0 }}>
+        {/* ───────────── HEADER PAGE ───────────── */}
+        <div
+          ref={headerRef}
+          style={{
+            width: "210mm",
+            height: "297mm",
+            padding: "12mm",
+            boxSizing: "border-box",
+            background: "#fff",
+          }}
+        >
+          <div style={{ textAlign: "center", marginBottom: "8mm" }}>
+            <img src="/logo.png" height={40} />
+          </div>
+
+          <div style={{ fontSize: 12 }}>
+            <div>
+              <strong>Project:</strong> {project.name}
+            </div>
+            <div>
+              <strong>Region:</strong> {project.region}
+            </div>
+            {project.address && (
+              <div>
+                <strong>Address:</strong> {project.address}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ───────────── PER ROOM ───────────── */}
+        {project.rooms.map((room, i) => (
+          <React.Fragment key={room.id}>
+            <div
+              ref={(el) => (detailRefs.current[i] = el!)}
+              style={{
+                width: "210mm",
+                height: "297mm",
+                background: "#fff",
+              }}
+            >
+              <RoomDetailsExport room={room} project={project} />
+            </div>
+
+            <div
+              ref={(el) => (layoutRefs.current[i] = el!)}
+              style={{
+                width: "210mm",
+                height: "297mm",
+                background: "#fff",
+              }}
+            >
+              <RoomLayoutExport room={room} project={project} />
+            </div>
+          </React.Fragment>
+        ))}
+
+        {/* ───────────── SUMMARY ───────────── */}
+        {summary && (
+          <div
+            ref={summaryRef}
+            style={{
+              width: "210mm",
+              height: "297mm",
+              padding: "12mm",
+              boxSizing: "border-box",
+              background: "#fff",
+            }}
+          >
+            {logoBase64 && (
+              <div
+                style={{
+                  textAlign: "center",
+                }}
+              >
+                <img
+                  src={logoBase64}
+                  alt="UltraCalc"
+                  style={{
+                    maxWidth: "240px",
+                    height: "auto",
+                    objectFit: "contain",
+                  }}
+                />
+              </div>
+            )}
+
+            <SummaryCard project={project} summary={summary} />
+          </div>
+        )}
       </div>
     </>
   );

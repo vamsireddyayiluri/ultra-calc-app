@@ -303,12 +303,6 @@ export function ultraCalc(input: UltraCalcInput): UltraCalcOutput {
         : '6" (150 mm)'
       : undefined;
 
-  console.log(
-    "ultraFinSpacing_mm",
-    ultraFinSpacing_mm,
-    tubingSpacing_mm,
-    "data"
-  );
   return {
     selection: {
       method: input.method,

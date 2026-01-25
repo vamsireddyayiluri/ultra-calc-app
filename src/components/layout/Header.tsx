@@ -74,9 +74,6 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={() => navigate("/dashboard")}
           />
           <div className="hidden sm:block leading-tight">
-            <h1 className="text-lg sm:text-2xl font-semibold text-[#0F1724]">
-              {title}
-            </h1>
             {subtitle && (
               <div className="text-sm text-[#4B5563]">{subtitle}</div>
             )}

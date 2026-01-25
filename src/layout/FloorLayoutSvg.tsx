@@ -1,5 +1,6 @@
 import React from "react";
 import { Tile } from "./layoutTypes";
+import { InstallMethod } from "../models/projectTypes";
 
 const SCALE = 1000; // meters → SVG units
 
@@ -11,32 +12,42 @@ interface Layout {
 
 interface Props {
   layout: Layout;
+  installMethod?: InstallMethod;
 }
 
-export const FloorLayoutSvg: React.FC<Props> = ({ layout }) => {
+export const FloorLayoutSvg: React.FC<Props> = ({ layout, installMethod }) => {
   return (
-    <svg
-      viewBox={`
+    <>
+      {installMethod != "INSLAB" && (
+        <svg
+          viewBox={`
         ${-SCALE * 0.5}
         ${-SCALE * 0.5}
         ${(layout.width + 1) * SCALE}
         ${(layout.height + 1) * SCALE}
       `}
-      width="100%"
-      height="100%"
-      preserveAspectRatio="xMinYMin meet"
-    >
-      {layout.tiles.map((t, i) => (
-        <image
-          key={i}
-          href={t.assetBase64 ?? t.asset}
-          x={t.x * SCALE}
-          y={t.y * SCALE}
-          width={Math.max(1, t.w * SCALE)}
-          height={Math.max(1, t.h * SCALE)}
-          preserveAspectRatio="xMidYMid meet"
-        />
-      ))}
-    </svg>
+          width="100%"
+          height="100%"
+          preserveAspectRatio="xMinYMin meet"
+        >
+          {layout.tiles.map((t, i) => (
+            <image
+              key={i}
+              href={t.assetBase64 ?? t.asset}
+              x={t.x * SCALE}
+              y={t.y * SCALE}
+              width={Math.max(1, t.w * SCALE)}
+              height={Math.max(1, t.h * SCALE)}
+              preserveAspectRatio="xMidYMid meet"
+            />
+          ))}
+        </svg>
+      )}
+      {installMethod === "INSLAB" && (
+        <div className=" rounded-md p-2">
+          <p className="text-center text-sm font-medium">Layout not available</p>
+        </div>
+      )}
+    </>
   );
 };

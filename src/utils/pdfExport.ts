@@ -13,7 +13,7 @@ export async function loadImageAsBase64(src: string): Promise<string> {
 export async function svgBase64ToPng(
   svgBase64: string,
   width: number,
-  height: number
+  height: number,
 ): Promise<string> {
   return new Promise((resolve) => {
     const img = new Image();
@@ -66,39 +66,73 @@ export async function inlineNestedSvgImages(svgUrl: string): Promise<string> {
   );
 }
 
-export const exportPDF = async (ref: React.RefObject<HTMLDivElement>) => {
-  if (!ref.current) return;
+async function renderPage(
+  pdf: jsPDF,
+  element?: HTMLElement | null,
+  mode: "text" | "layout" = "text",
+) {
+  if (!element) return;
 
-  const canvas = await html2canvas(ref.current, {
-    scale: 2,
+  const canvas = await html2canvas(element, {
+    scale: mode === "layout" ? 2 : 1.5,
     useCORS: true,
     backgroundColor: "#ffffff",
   });
 
-  const imgData = canvas.toDataURL("image/png");
+  if (mode === "layout") {
+    // 🔹 PNG keeps transparency → layout works
+    const img = canvas.toDataURL("image/png");
+    pdf.addImage(
+      img,
+      "PNG",
+      0,
+      0,
+      pdf.internal.pageSize.getWidth(),
+      pdf.internal.pageSize.getHeight(),
+    );
+  } else {
+    // 🔹 JPEG compresses text pages
+    const img = canvas.toDataURL("image/jpeg", 0.85);
+    pdf.addImage(
+      img,
+      "JPEG",
+      0,
+      0,
+      pdf.internal.pageSize.getWidth(),
+      pdf.internal.pageSize.getHeight(),
+    );
+  }
+}
 
+export async function exportPDF(
+  headerRef: HTMLDivElement | null,
+  detailRefs: HTMLDivElement[],
+  layoutRefs: HTMLDivElement[],
+  summaryRef?: HTMLDivElement | null,
+) {
   const pdf = new jsPDF("p", "mm", "a4");
+  let firstPage = true;
 
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
+  const addPage = async (
+    el?: HTMLElement | null,
+    mode: "text" | "layout" = "text",
+  ) => {
+    if (!el) return;
+    if (!firstPage) pdf.addPage();
+    await renderPage(pdf, el, mode);
+    firstPage = false;
+  };
 
-  const imgWidth = pageWidth;
-  const imgHeight = (canvas.height * imgWidth) / canvas.width;
+  /* ───────────── ROOMS ───────────── */
+  for (let i = 0; i < detailRefs.length; i++) {
+    await addPage(detailRefs[i], "text"); // ✅ details → JPEG
+    await addPage(layoutRefs[i], "layout"); // ✅ layout → PNG
+  }
 
-  let heightLeft = imgHeight;
-  let position = 0;
-
-  // First page
-  pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-  heightLeft -= pageHeight;
-
-  // Additional pages
-  while (heightLeft > 0) {
-    position -= pageHeight;
-    pdf.addPage();
-    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
+  /* ───────────── SUMMARY ───────────── */
+  if (summaryRef) {
+    await addPage(summaryRef, "text");
   }
 
   pdf.save("project-export.pdf");
-};
+}

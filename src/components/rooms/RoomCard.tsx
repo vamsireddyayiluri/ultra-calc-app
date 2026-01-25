@@ -61,20 +61,19 @@ export const RoomCard: React.FC<RoomCardProps> = ({
   onRemoveRoom,
   calculateRoom,
 }) => {
-  console.log("RoomCard render", room, project);
   const normalizedProject = React.useMemo(
     () => normalizeProjectSettings(project),
-    [project]
+    [project],
   );
 
   const res = React.useMemo(
     () => calculateRoom(room, normalizedProject),
-    [room, normalizedProject]
+    [room, normalizedProject],
   );
 
   const ultra = React.useMemo(
     () => runUltraCalc(room, res, project),
-    [room, res, project]
+    [room, res, project],
   );
   const [sidebarImages, setSidebarImages] =
     React.useState<SidebarImages | null>(null);
@@ -127,7 +126,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
     const buildSidebar = async () => {
       const sidebar = resolveSidebarAssets(
         room.installMethod,
-        room.joistSpacing
+        room.joistSpacing,
       );
 
       const isSvg = (s: string) => s.endsWith(".svg");
@@ -140,7 +139,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             : await loadImageAsBase64(src);
 
           return exportMode ? await svgBase64ToPng(svg, 104, 64) : svg;
-        })
+        }),
       );
 
       const supportIcon = sidebar.supportIcon
@@ -148,14 +147,14 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           ? await svgBase64ToPng(
               await inlineNestedSvgImages(sidebar.supportIcon),
               48,
-              48
+              48,
             )
           : await inlineNestedSvgImages(sidebar.supportIcon)
         : null;
 
       if (!cancelled) {
         setSidebarImages({
-          profiles:profiles || [],
+          profiles: profiles || [],
           supportIcon,
           joistLabel:
             room.installMethod === "INSLAB"
@@ -182,17 +181,21 @@ export const RoomCard: React.FC<RoomCardProps> = ({
   const DisplayValue: React.FC<{ children: React.ReactNode }> = ({
     children,
   }) => (
-    <div className="w-full px-3 py-2 text-sm text-slate-800">
+    <div className="w-full px-3 py-0 text-sm text-slate-800">
       {children ?? "—"}
     </div>
   );
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 bg-white">
-      <SectionCard title={room.name}>
+    <div
+      className={`grid gap-4 bg-white ${
+        exportMode ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-2"
+      }`}
+    >
+      <SectionCard title={room.name} exportMode={exportMode}>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {/* Room Name */}
-          <Field label="Room Name">
+          <Field label="Room Name" exportMode={exportMode}>
             {exportMode ? (
               <DisplayValue>{room.name}</DisplayValue>
             ) : (
@@ -207,7 +210,10 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           </Field>
 
           {/* Setpoint */}
-          <Field label={`Setpoint Temp (${uiUnits.temperature})`}>
+          <Field
+            label={`Setpoint Temp (${uiUnits.temperature})`}
+            exportMode={exportMode}
+          >
             {exportMode ? (
               <DisplayValue>
                 {toDisplayTemperature(project.region, room.setpointC)}
@@ -231,7 +237,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           </Field>
 
           {/* Length */}
-          <Field label={`Length (${lenLabel})`}>
+          <Field label={`Length (${lenLabel})`} exportMode={exportMode}>
             {exportMode ? (
               <DisplayValue>
                 {toDisplayLength(project.region, room.length_m)}
@@ -253,7 +259,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           </Field>
 
           {/* Width */}
-          <Field label={`Width (${lenLabel})`}>
+          <Field label={`Width (${lenLabel})`} exportMode={exportMode}>
             {exportMode ? (
               <DisplayValue>
                 {toDisplayLength(project.region, room.width_m)}
@@ -275,7 +281,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           </Field>
 
           {/* Height */}
-          <Field label={`Height (${lenLabel})`}>
+          <Field label={`Height (${lenLabel})`} exportMode={exportMode}>
             {exportMode ? (
               <DisplayValue>
                 {toDisplayLength(project.region, room.height_m)}
@@ -297,7 +303,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           </Field>
 
           {/* Exterior Wall */}
-          <Field label={`Exterior Wall (${lenLabel})`}>
+          <Field label={`Exterior Wall (${lenLabel})`} exportMode={exportMode}>
             {exportMode ? (
               <DisplayValue>
                 {toDisplayLength(project.region, room.exteriorLen_m)}
@@ -321,7 +327,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           </Field>
 
           {/* Windows */}
-          <Field label={`Windows (${areaLabel})`}>
+          <Field label={`Windows (${areaLabel})`} exportMode={exportMode}>
             {exportMode ? (
               <DisplayValue>
                 {toDisplayArea(project.region, room.windowArea_m2)}
@@ -343,7 +349,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           </Field>
 
           {/* Doors */}
-          <Field label={`Doors (${areaLabel})`}>
+          <Field label={`Doors (${areaLabel})`} exportMode={exportMode}>
             {exportMode ? (
               <DisplayValue>
                 {toDisplayArea(project.region, room.doorArea_m2)}
@@ -365,7 +371,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           </Field>
 
           {/* Joist Spacing */}
-          <Field label="Joist Spacing">
+          <Field label="Joist Spacing" exportMode={exportMode}>
             {exportMode ? (
               <DisplayValue>
                 {room.joistSpacing}" ({Math.round(room.joistSpacing * 25.4)} mm)
@@ -389,7 +395,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           </Field>
 
           {/* Floor Cover */}
-          <Field label="Floor Cover">
+          <Field label="Floor Cover" exportMode={exportMode}>
             {exportMode ? (
               <DisplayValue>{room.floorCover}</DisplayValue>
             ) : (
@@ -413,11 +419,11 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             )}
           </Field>
           {/* Install Method */}
-          <Field label="Install Method">
+          <Field label="Install Method" exportMode={exportMode}>
             {exportMode ? (
               <DisplayValue>
                 {INSTALL_METHOD_OPTIONS.find(
-                  (opt) => opt.value === room.installMethod
+                  (opt) => opt.value === room.installMethod,
                 )?.label || "—"}
               </DisplayValue>
             ) : (
@@ -441,7 +447,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
               </select>
             )}
           </Field>
-          <Field label={`Floor On Ground`}>
+          <Field label={`Floor On Ground`} exportMode={exportMode}>
             {exportMode ? (
               <DisplayValue>
                 {room.floorOnGround ? "Yes — floor on ground" : "No"}
@@ -467,23 +473,31 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           </Field>
         </div>
 
-        <div className="mt-3 flex items-center justify-between">
+        <div className="mt-3 mb-2 flex items-center justify-between">
           <div className="text-xs text-slate-500">
             Area:{" "}
             {toDisplayArea(
               project.region,
-              room.length_m * room.width_m
+              room.length_m * room.width_m,
             )?.toFixed(2)}{" "}
             {uiUnits.area}
           </div>
           {!exportMode && (
-            <button onClick={() => onRemoveRoom(room.name)}>Remove room</button>
+            <button
+              className="inline-flex justify-center items-center gap-2 px-5 py-2.5 
+      rounded-lg text-sm font-semibold 
+      bg-red-50 text-red-700 hover:bg-red-100 transition-colors
+      focus:outline-none focus:ring-2 focus:ring-red-300"
+              onClick={() => onRemoveRoom(room.name)}
+            >
+              Remove room
+            </button>
           )}
         </div>
       </SectionCard>
 
       {/* -------- Physics Results -------- */}
-      <SectionCard title="Results & Materials">
+      <SectionCard title="Results & Materials" exportMode={exportMode}>
         {/* ---------------- Heat Loss Results ---------------- */}
         <div className="mb-4">
           <h4 className="text-sm font-semibold text-slate-700 mb-2">
@@ -606,11 +620,13 @@ export const RoomCard: React.FC<RoomCardProps> = ({
 
             {ultra.selection.ultraFinSpacing_mm && (
               <>
-                <div className="text-slate-600">Ultra-Fin Spacing (C-C)</div>
+                <div className="text-slate-600 mb-2">
+                  Ultra-Fin Spacing (C-C)
+                </div>
                 <div className="text-right font-semibold">
                   {formatSpacing(
                     project.region,
-                    ultra.selection.ultraFinSpacing_mm
+                    ultra.selection.ultraFinSpacing_mm,
                   )}
                 </div>
               </>
@@ -618,18 +634,18 @@ export const RoomCard: React.FC<RoomCardProps> = ({
 
             {ultra.selection.tubingSpacing_mm && (
               <>
-                <div className="text-slate-600">Tubing Spacing (C-C)</div>
+                <div className="text-slate-600 mb-2">Tubing Spacing (C-C)</div>
                 <div className="text-right font-semibold">
                   {formatSpacing(
                     project.region,
-                    ultra.selection.tubingSpacing_mm
+                    ultra.selection.tubingSpacing_mm,
                   )}
                 </div>
               </>
             )}
             {ultra.selection.spacingDisplayText && (
               <>
-                <div className="text-slate-600">Tubing Spacing (C-C)</div>
+                <div className="text-slate-600 mb-2">Tubing Spacing (C-C)</div>
                 <div className="text-right font-semibold">
                   {ultra.selection.spacingDisplayText}
                 </div>
@@ -638,24 +654,34 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           </div>
 
           {ultra.selection.supplementalWarning && (
-            <div className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-md p-2">
+            <div className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-md p-2 mb-2">
               🔥 Add Supplemental Heat Recommended
             </div>
           )}
         </div>
       </SectionCard>
       {/* -------- Layout Visualization -------- */}
-      {layout && sidebarImages?.profiles && (
+      {!exportMode && layout && sidebarImages?.profiles && (
         <SectionCard title="Layout Visualization">
-          <div className="flex flex-row items-start gap-4">
-            <div className="flex-1 min-h-[320px]">
-              <FloorLayoutSvg layout={layout} />
-            </div>
-
-            <div className="flex-shrink-0">
+          {room.installMethod === "INSLAB" && (
+            <div className="flex justify-center">
               <RightSidebar images={sidebarImages} />
             </div>
-          </div>
+          )}
+          {room.installMethod !== "INSLAB" && (
+            <div className="flex flex-row items-start gap-4">
+              <div className="flex-1 min-h-[320px]">
+                <FloorLayoutSvg
+                  layout={layout}
+                  installMethod={room.installMethod}
+                />
+              </div>
+
+              <div className="flex-shrink-0">
+                <RightSidebar images={sidebarImages} />
+              </div>
+            </div>
+          )}
         </SectionCard>
       )}
     </div>

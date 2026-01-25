@@ -16,7 +16,6 @@ export const MaterialsCard: React.FC<MaterialsCardProps> = ({
 }) => {
   const { materials, selection } = ultra;
   const uiUnits = getUIUnits(project.region);
-  console.log(selection)
 
   return (
     <SectionCard title="Materials (Ultra-Calc)">

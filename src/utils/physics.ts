@@ -38,7 +38,7 @@ export function interpWaterC(q_Wm2: number): number {
 ------------------------------------------------------------ */
 function getWindowUFromGlazing(
   settings: ProjectSettings,
-  fallback: number
+  fallback: number,
 ): number {
   if (settings.glazing) return GLAZING_WINDOW_U[settings.glazing] ?? fallback;
   return fallback;
@@ -63,10 +63,6 @@ function mergeUValues(settings: ProjectSettings): {
 
   U.window = getWindowUFromGlazing(settings, U.window);
 
-  if (settings.customUOverrides) {
-    U = { ...U, ...settings.customUOverrides };
-  }
-
   return { U, achOrN };
 }
 
@@ -81,7 +77,7 @@ export function roomVolume_m3(r: RoomInput): number {
   const OCCUPIED_HEIGHT_CAP_M = 2.4;
   const effectiveHeight_m = Math.min(
     r.height_m ?? OCCUPIED_HEIGHT_CAP_M,
-    OCCUPIED_HEIGHT_CAP_M
+    OCCUPIED_HEIGHT_CAP_M,
   );
   return roomArea_m2(r) * effectiveHeight_m;
 }
@@ -96,7 +92,7 @@ function fabricLoss_W(r: RoomInput, U: MaterialUValues, dT: number): number {
     0,
     (r.exteriorLen_m ?? 0) * r.height_m -
       (r.windowArea_m2 ?? 0) -
-      (r.doorArea_m2 ?? 0)
+      (r.doorArea_m2 ?? 0),
   );
 
   const Qw = U.wall * wallArea * dT;
@@ -115,7 +111,7 @@ function ventilationLoss_W(
   r: RoomInput,
   settings: ProjectSettings,
   achOrN: number,
-  dT: number
+  dT: number,
 ): number {
   const V = roomVolume_m3(r);
 
@@ -137,7 +133,6 @@ function thermalBridge_W(settings: ProjectSettings, dT: number): number {
 }
 
 function groundLoss_W(r: RoomInput, dT: number): number {
-  console.log(r.floorOnGround);
   if (!r.floorOnGround) return 0;
   return 0.1 * roomArea_m2(r) * dT;
 }
@@ -166,7 +161,7 @@ function getFloorCoverR(room: RoomInput): number | undefined {
 ------------------------------------------------------------ */
 export function calculateRoom(
   r: RoomInput,
-  settings: ProjectSettings
+  settings: ProjectSettings,
 ): RoomResults {
   const dT = (r.setpointC ?? settings.indoorTempC) - settings.outdoorTempC;
 
@@ -193,10 +188,7 @@ export function calculateRoom(
       value: load_W_per_m2,
     });
     const mode = determineMode(loadBTU);
-    waterTemp_C =
-      mode === "LL"
-        ? ((100 - 32) * 5) / 9 
-        : ((120 - 32) * 5) / 9; 
+    waterTemp_C = mode === "LL" ? ((100 - 32) * 5) / 9 : ((120 - 32) * 5) / 9;
   } else {
     waterTemp_C = interpWaterC(load_W_per_m2);
 
