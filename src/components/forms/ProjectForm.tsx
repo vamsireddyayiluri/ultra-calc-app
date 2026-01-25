@@ -80,7 +80,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
           const res = await fetch(
             `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${
               import.meta.env.VITE_GOOGLE_API_KEY
-            }`
+            }`,
           );
           const data = await res.json();
           if (data.results && data.results.length > 0) {
@@ -94,9 +94,9 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
       },
       () => {
         setError(
-          "Unable to fetch your location. Please allow location access."
+          "Unable to fetch your location. Please allow location access.",
         );
-      }
+      },
     );
   }, [project.id]);
 
@@ -111,7 +111,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
       };
       autocompleteRef.current = new window.google.maps.places.Autocomplete(
         inputRef.current,
-        options
+        options,
       );
       autocompleteRef.current.addListener("place_changed", () => {
         const place = autocompleteRef.current.getPlace();
@@ -161,9 +161,9 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
       hint?: string;
       toDisplay?: (v?: number) => number | undefined;
       fromDisplay?: (v?: number) => number | undefined;
-    }
+    },
   ) => (
-    <Field label={`${label}${isCustom(fieldKey as string) ? " (custom)" : ""}`}>
+    <Field required label={`${label}${isCustom(fieldKey as string) ? " (custom)" : ""}`}>
       <input
         type="number"
         className="w-full border border-slate-300 rounded-md px-3 py-2"
@@ -187,7 +187,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
   return (
     <SectionCard title="Project">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Field label="Project Name">
+        <Field label="Project Name" required>
           <input
             className="w-full border border-slate-300 rounded-md px-3 py-2"
             value={project.name ?? ""}
@@ -206,7 +206,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
         </Field>
 
         {/* Region */}
-        <Field label="Region">
+        <Field label="Region" required>
           <select
             value={project.region ?? ""}
             onChange={(e) => {
@@ -233,7 +233,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
           </div>
         </Field>
 
-        <Field label="Address">
+        <Field label="Address" required>
           <input
             ref={inputRef}
             className="w-full border border-slate-300 rounded-md px-3 py-2"
@@ -245,7 +245,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
         </Field>
 
         {/* Design Temperatures */}
-        <Field label={`Indoor Design Temperature (${uiUnits.temperature})`}>
+        <Field required label={`Indoor Design Temperature (${uiUnits.temperature})`}>
           <input
             type="number"
             step="0.5"
@@ -263,7 +263,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
           />
         </Field>
 
-        <Field label={`Outdoor Design Temperature (${uiUnits.temperature})`}>
+        <Field required label={`Outdoor Design Temperature (${uiUnits.temperature})`}>
           <input
             type="number"
             step="0.5"
@@ -288,7 +288,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
         </Field>
 
         {/* Insulation Period */}
-        <Field label="Insulation Period">
+        <Field required label="Insulation Period">
           <select
             className="w-full border border-slate-300 rounded-md px-3 py-2"
             value={project.insulationPeriod ?? ""}
@@ -311,7 +311,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
           </select>
         </Field>
 
-        <Field label="Glazing Type">
+        <Field required label="Glazing Type">
           <select
             className="w-full border border-slate-300 rounded-md px-3 py-2"
             value={project.glazing ?? ""}
@@ -343,7 +343,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
 
         {advancedOpen && (
           <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Field label="Standards Mode">
+            <Field label="Standards Mode" required>
               <select
                 className="w-full border border-slate-300 rounded-md px-3 py-2"
                 value={project.standardsMode ?? ""}
@@ -367,7 +367,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
                 max: 100,
                 step: 0.1,
                 hint: "Typical 10–15%",
-              }
+              },
             )}
             {numericField(
               "Heat-up Factor (%)",
@@ -378,7 +378,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
                 max: 200,
                 step: 0.1,
                 hint: "Warm-up multiplier (typical 20–30%)",
-              }
+              },
             )}
             {numericField(
               `Psi allowance (${uiUnits.psi})`,
@@ -397,7 +397,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
                 hint: "Thermal bridging allowance",
                 toDisplay: (v) => toDisplayPsiAllowance(project.region, v),
                 fromDisplay: (v) => fromDisplayPsiAllowance(project.region, v),
-              }
+              },
             )}
 
             {numericField(
@@ -413,7 +413,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
                 // 🔽 DISPLAY ADAPTERS
                 toDisplay: (v) => toDisplayVentilation(project.region, v),
                 fromDisplay: (v) => fromDisplayVentilation(project.region, v),
-              }
+              },
             )}
             {numericField(
               "Infiltration (ACH)",
@@ -424,10 +424,8 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
                 max: 5,
                 step: 0.01,
                 hint: "Typical 0.2–0.5",
-              }
+              },
             )}
-
-            
 
             {/* Custom U-values */}
             <div className="md:col-span-3 border-t border-slate-200 pt-3 mt-2">
@@ -450,6 +448,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
                     label={`${key[0].toUpperCase() + key.slice(1)} U (${
                       uiUnits.uValue
                     })`}
+                    required
                   >
                     <input
                       type="number"
@@ -459,7 +458,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
                       value={
                         toDisplayUValue(
                           project.region,
-                          project.customUOverrides?.[key]
+                          project.customUOverrides?.[key],
                         ) ?? ""
                       }
                       onChange={(e) => {

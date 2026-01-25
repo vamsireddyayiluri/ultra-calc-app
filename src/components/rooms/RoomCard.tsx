@@ -195,7 +195,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
       <SectionCard title={room.name} exportMode={exportMode}>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {/* Room Name */}
-          <Field label="Room Name" exportMode={exportMode}>
+          <Field label="Room Name" exportMode={exportMode} required>
             {exportMode ? (
               <DisplayValue>{room.name}</DisplayValue>
             ) : (
@@ -213,6 +213,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           <Field
             label={`Setpoint Temp (${uiUnits.temperature})`}
             exportMode={exportMode}
+            required
           >
             {exportMode ? (
               <DisplayValue>
@@ -237,7 +238,11 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           </Field>
 
           {/* Length */}
-          <Field label={`Length (${lenLabel})`} exportMode={exportMode}>
+          <Field
+            label={`Length (${lenLabel})`}
+            exportMode={exportMode}
+            required
+          >
             {exportMode ? (
               <DisplayValue>
                 {toDisplayLength(project.region, room.length_m)}
@@ -259,7 +264,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           </Field>
 
           {/* Width */}
-          <Field label={`Width (${lenLabel})`} exportMode={exportMode}>
+          <Field label={`Width (${lenLabel})`} exportMode={exportMode} required>
             {exportMode ? (
               <DisplayValue>
                 {toDisplayLength(project.region, room.width_m)}
@@ -281,7 +286,11 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           </Field>
 
           {/* Height */}
-          <Field label={`Height (${lenLabel})`} exportMode={exportMode}>
+          <Field
+            label={`Height (${lenLabel})`}
+            exportMode={exportMode}
+            required
+          >
             {exportMode ? (
               <DisplayValue>
                 {toDisplayLength(project.region, room.height_m)}
@@ -303,7 +312,11 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           </Field>
 
           {/* Exterior Wall */}
-          <Field label={`Exterior Wall (${lenLabel})`} exportMode={exportMode}>
+          <Field
+            label={`Exterior Wall (${lenLabel})`}
+            exportMode={exportMode}
+            required
+          >
             {exportMode ? (
               <DisplayValue>
                 {toDisplayLength(project.region, room.exteriorLen_m)}
@@ -327,7 +340,11 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           </Field>
 
           {/* Windows */}
-          <Field label={`Windows (${areaLabel})`} exportMode={exportMode}>
+          <Field
+            label={`Windows (${areaLabel})`}
+            exportMode={exportMode}
+            required
+          >
             {exportMode ? (
               <DisplayValue>
                 {toDisplayArea(project.region, room.windowArea_m2)}
@@ -349,7 +366,11 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           </Field>
 
           {/* Doors */}
-          <Field label={`Doors (${areaLabel})`} exportMode={exportMode}>
+          <Field
+            label={`Doors (${areaLabel})`}
+            exportMode={exportMode}
+            required
+          >
             {exportMode ? (
               <DisplayValue>
                 {toDisplayArea(project.region, room.doorArea_m2)}
@@ -371,7 +392,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           </Field>
 
           {/* Joist Spacing */}
-          <Field label="Joist Spacing" exportMode={exportMode}>
+          <Field label="Joist Spacing" exportMode={exportMode} required>
             {exportMode ? (
               <DisplayValue>
                 {room.joistSpacing}" ({Math.round(room.joistSpacing * 25.4)} mm)
@@ -395,7 +416,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           </Field>
 
           {/* Floor Cover */}
-          <Field label="Floor Cover" exportMode={exportMode}>
+          <Field label="Floor Cover" exportMode={exportMode} required>
             {exportMode ? (
               <DisplayValue>{room.floorCover}</DisplayValue>
             ) : (
@@ -419,7 +440,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             )}
           </Field>
           {/* Install Method */}
-          <Field label="Install Method" exportMode={exportMode}>
+          <Field label="Install Method" exportMode={exportMode} required>
             {exportMode ? (
               <DisplayValue>
                 {INSTALL_METHOD_OPTIONS.find(
@@ -447,7 +468,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
               </select>
             )}
           </Field>
-          <Field label={`Floor On Ground`} exportMode={exportMode}>
+          <Field label={`Floor On Ground`} exportMode={exportMode} required>
             {exportMode ? (
               <DisplayValue>
                 {room.floorOnGround ? "Yes — floor on ground" : "No"}

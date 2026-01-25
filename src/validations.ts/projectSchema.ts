@@ -2,11 +2,19 @@ import { z } from "zod";
 
 export const projectSchema = z.object({
   name: z.string().min(1, "Project name is required"),
-  contractor: z.string().min(1, "Contractor name is required"),
   region: z.string().min(1, "Region must be selected"),
-  address: z.string().min(1, "Address is required"),
+  address: z.string().min(1, "Address is required, Please enter valid address"),
   standardsMode: z.string().min(1, "Standards mode must be selected"),
-  indoorTempC: z.number().min(-10).max(50, "Invalid indoor temperature"),
+  indoorTempC: z.preprocess(
+      (val) => (val === null || val === undefined ? -90 : val),
+      z
+        .number()
+        .min(-50, "Invalid indoor temperature")
+        .max(50, "Invalid indoor temperature")
+    )
+    .refine((val) => val !== undefined, {
+      message: "indoor design temperature is required",
+    }),
   outdoorTempC: z
     .preprocess(
       (val) => (val === null || val === undefined ? -90 : val),
