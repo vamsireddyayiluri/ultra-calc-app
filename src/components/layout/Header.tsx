@@ -63,7 +63,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-[#FFF5E6] text-[#0F1724] shadow-md">
+    <header className="sticky top-0 z-30 bg-white text-slate-900 shadow-sm border-b border-gray-200">
       <div className="flex items-center justify-between px-6 py-3">
         {/* Left: Logo + Title */}
         <div className="flex items-center gap-3">
@@ -86,10 +86,10 @@ export const Header: React.FC<HeaderProps> = ({
           {!isHomePage && (
             <button
               onClick={() => navigate("/dashboard")}
-              className="p-2 rounded-full hover:bg-[#FFEFD4] transition-colors"
+              className="p-2 rounded-full hover:bg-gray-100 transition-colors"
               title="Go to Home"
             >
-              <Home className="w-6 h-6 text-[#0F1724]" />
+              <Home className="w-6 h-6 text-slate-700" />
             </button>
           )}
 
@@ -105,7 +105,7 @@ export const Header: React.FC<HeaderProps> = ({
                 className="w-9 h-9 rounded-full border border-gray-300"
               />
             ) : (
-              <div className="w-9 h-9 rounded-full bg-[#0F1724] text-white flex items-center justify-center font-semibold">
+              <div className="w-9 h-9 rounded-full bg-slate-700 text-white flex items-center justify-center font-semibold">
                 {userData?.name?.[0]?.toUpperCase() || "U"}
               </div>
             )}
@@ -121,14 +121,14 @@ export const Header: React.FC<HeaderProps> = ({
                     setMenuOpen(false);
                     navigate("/profile");
                   }}
-                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[#0F1724] hover:bg-[#FFF5E6]"
+                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-800 hover:bg-gray-100"
                 >
                   <User size={16} /> Profile Settings
                 </button>
               )}
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[#0F1724] hover:bg-[#FFF5E6]"
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[#0F1724] hover:bg-gray-100"
               >
                 <LogOut size={16} /> Logout
               </button>

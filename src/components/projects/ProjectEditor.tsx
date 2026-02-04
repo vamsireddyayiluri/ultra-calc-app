@@ -14,9 +14,9 @@ interface ProjectEditorProps {
   rooms: RoomInput[];
   onUpdateProject: (patch: Partial<ProjectSettings>) => void;
   onUpdateRoom: (id: string, patch: Partial<RoomInput>) => void;
-  onAddRoom: () => void;
   onRemoveRoom: (id: string) => void;
   summary: ProjectSummary | null;
+  onTabChange?: (tab: "details" | "rooms" | "summary") => void;
 }
 
 export const ProjectEditor: React.FC<ProjectEditorProps> = ({
@@ -24,12 +24,12 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({
   rooms,
   onUpdateProject,
   onUpdateRoom,
-  onAddRoom,
   onRemoveRoom,
   summary,
+  onTabChange, // ✅ here
 }) => {
   const [activeTab, setActiveTab] = useState<"details" | "rooms" | "summary">(
-    "details"
+    "details",
   );
 
   return (
@@ -44,13 +44,18 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({
                 ? "border-[#1E3A8A] text-[#1E3A8A]"
                 : "border-transparent text-slate-500 hover:text-slate-700"
             }`}
-            onClick={() => setActiveTab(tab as any)}
+            onClick={() => {
+              const selectedTab = tab as "details" | "rooms" | "summary";
+
+              setActiveTab(selectedTab);
+              onTabChange?.(selectedTab);
+            }}
           >
             {tab === "details"
               ? "Project Details"
               : tab === "rooms"
-              ? "Rooms"
-              : "Summary"}
+                ? "Rooms"
+                : "Summary"}
           </button>
         ))}
       </div>
@@ -65,14 +70,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({
       {activeTab === "rooms" && (
         <div className="space-y-4 animate-fadeIn">
           <div className="flex justify-between items-center mb-3">
-            <h3 className="text-lg font-semibold text-slate-800">Rooms</h3>
-            <button
-              onClick={onAddRoom}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold
-                         bg-[#22D3EE] text-[#042029] hover:bg-[#18c6dd] transition-colors shadow-sm"
-            >
-              + Add Room
-            </button>
+            <h2 className="text-lg font-semibold text-slate-800">Rooms</h2>
           </div>
 
           {rooms.length === 0 && (

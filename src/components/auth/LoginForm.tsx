@@ -47,14 +47,14 @@ export default function LoginForm() {
   };
 
   return (
-    <div className="flex justify-center items-center bg-[#FFF8EE] min-h-screen px-4">
+    <div className="flex justify-center items-center bg-gray-100 min-h-screen px-4">
       <form
         onSubmit={handleLogin}
         className="bg-white p-6 sm:p-8 rounded-2xl shadow-lg w-full max-w-md transition-all"
       >
         {/* Header */}
         <div className="flex flex-col items-center mb-4">
-          <img src={logo} alt="logo" style={{ maxWidth: 160 }} />
+          <img src={logo} alt="logo" className="h-18 object-contain" />
           <h2 className="mt-5 text-xl font-semibold text-gray-800">
             Welcome Back
           </h2>
@@ -131,7 +131,10 @@ export default function LoginForm() {
         {/* Footer Links */}
         <div className="text-center mt-5 text-sm text-gray-600">
           Don’t have an account?{" "}
-          <Link to="/register" className="text-blue-600 font-medium hover:underline">
+          <Link
+            to="/register"
+            className="text-blue-600 font-medium hover:underline"
+          >
             Sign Up
           </Link>
         </div>

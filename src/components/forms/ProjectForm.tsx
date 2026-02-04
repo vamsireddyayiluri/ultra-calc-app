@@ -28,6 +28,7 @@ interface ProjectFormProps {
   project: ProjectSettings;
   onUpdate: (patch: Partial<ProjectSettings>) => void;
   appliedDefaults?: Partial<Record<string, any>>;
+  exportMode?: boolean;
 }
 
 const REGION_OPTIONS: { key: Region; label: string }[] = [
@@ -54,6 +55,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
   project,
   onUpdate,
   appliedDefaults,
+  exportMode = false,
 }) => {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -149,6 +151,13 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
       project[k as keyof ProjectSettings] !== appliedDefaults[k]
     );
   };
+  const DisplayValue: React.FC<{ children: React.ReactNode }> = ({
+    children,
+  }) => (
+    <div className="w-full px-3 py-0 text-sm text-slate-800">
+      {children ?? "—"}
+    </div>
+  );
 
   const numericField = (
     label: string,
@@ -163,7 +172,10 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
       fromDisplay?: (v?: number) => number | undefined;
     },
   ) => (
-    <Field required label={`${label}${isCustom(fieldKey as string) ? " (custom)" : ""}`}>
+    <Field
+      required
+      label={`${label}${isCustom(fieldKey as string) ? " (custom)" : ""}`}
+    >
       <input
         type="number"
         className="w-full border border-slate-300 rounded-md px-3 py-2"
@@ -188,45 +200,59 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
     <SectionCard title="Project">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Field label="Project Name" required>
-          <input
-            className="w-full border border-slate-300 rounded-md px-3 py-2"
-            value={project.name ?? ""}
-            onChange={(e) => onUpdate({ name: e.target.value })}
-            placeholder="e.g., Smith Residence – Main Floor"
-          />
+          {exportMode ? (
+            <DisplayValue>{project.name}</DisplayValue>
+          ) : (
+            <input
+              className="w-full border border-slate-300 rounded-md px-3 py-2"
+              value={project.name ?? ""}
+              onChange={(e) => onUpdate({ name: e.target.value })}
+            />
+          )}
         </Field>
 
         <Field label="Contractor">
-          <input
-            className="w-full border border-slate-300 rounded-md px-3 py-2"
-            value={project.contractor ?? ""}
-            onChange={(e) => onUpdate({ contractor: e.target.value })}
-            placeholder="e.g., ABC Mechanical Ltd."
-          />
+          {exportMode ? (
+            <DisplayValue>{project.contractor || "—"}</DisplayValue>
+          ) : (
+            <input
+              className="w-full border border-slate-300 rounded-md px-3 py-2"
+              value={project.contractor ?? ""}
+              onChange={(e) => onUpdate({ contractor: e.target.value })}
+            />
+          )}
         </Field>
 
         {/* Region */}
         <Field label="Region" required>
-          <select
-            value={project.region ?? ""}
-            onChange={(e) => {
-              const region = e.target.value as Region;
-              const updatedDefaults = getDefaultUValues({ ...project, region });
-              const defaults = REGION_DEFAULTS[region] ?? {};
-              onUpdate({
-                region,
-                ...defaults,
-                customUOverrides: updatedDefaults,
-              });
-            }}
-            className="w-full border border-slate-300 rounded-md px-3 py-2"
-          >
-            {REGION_OPTIONS.map((o) => (
-              <option key={o.key} value={o.key}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+          {exportMode ? (
+            <DisplayValue>{regionLabel}</DisplayValue>
+          ) : (
+            <select
+              value={project.region ?? ""}
+              onChange={(e) => {
+                const region = e.target.value as Region;
+                const updatedDefaults = getDefaultUValues({
+                  ...project,
+                  region,
+                });
+                const defaults = REGION_DEFAULTS[region] ?? {};
+                onUpdate({
+                  region,
+                  ...defaults,
+                  customUOverrides: updatedDefaults,
+                });
+              }}
+              className="w-full border border-slate-300 rounded-md px-3 py-2"
+            >
+              {REGION_OPTIONS.map((o) => (
+                <option key={o.key} value={o.key}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          )}
+
           <div className="text-xs text-slate-500 mt-1">
             Using: <span className="font-semibold">{regionLabel}</span> —{" "}
             <span className="font-medium">{standardsLabel}</span>
@@ -234,254 +260,313 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
         </Field>
 
         <Field label="Address" required>
-          <input
-            ref={inputRef}
-            className="w-full border border-slate-300 rounded-md px-3 py-2"
-            defaultValue={project.address ?? ""}
-            onChange={(e) => onUpdate({ address: e.target.value })}
-            placeholder="Street, City, State/Province, Zip/Postal Code"
-          />
+          {exportMode ? (
+            <DisplayValue>{project.address}</DisplayValue>
+          ) : (
+            <input
+              ref={inputRef}
+              className="w-full border border-slate-300 rounded-md px-3 py-2"
+              defaultValue={project.address ?? ""}
+              onChange={(e) => onUpdate({ address: e.target.value })}
+            />
+          )}
+
           {error && <div className="text-xs text-red-500 mt-1">{error}</div>}
         </Field>
 
         {/* Design Temperatures */}
-        <Field required label={`Indoor Design Temperature (${uiUnits.temperature})`}>
-          <input
-            type="number"
-            step="0.5"
-            className="w-full border border-slate-300 rounded-md px-3 py-2"
-            value={
-              toDisplayTemperature(project.region, project.indoorTempC) ?? ""
-            }
-            onChange={(e) => {
-              const raw =
-                e.target.value === "" ? undefined : Number(e.target.value);
-              onUpdate({
-                indoorTempC: fromDisplayTemperature(project.region, raw),
-              });
-            }}
-          />
+        <Field
+          required
+          label={`Indoor Design Temperature (${uiUnits.temperature})`}
+        >
+          {exportMode ? (
+            <DisplayValue>
+              {toDisplayTemperature(project.region, project.indoorTempC)}{" "}
+              {uiUnits.temperature}
+            </DisplayValue>
+          ) : (
+            <input
+              type="number"
+              step="0.5"
+              className="w-full border border-slate-300 rounded-md px-3 py-2"
+              value={
+                toDisplayTemperature(project.region, project.indoorTempC) ?? ""
+              }
+              onChange={(e) => {
+                const raw =
+                  e.target.value === "" ? undefined : Number(e.target.value);
+
+                onUpdate({
+                  indoorTempC: fromDisplayTemperature(project.region, raw),
+                });
+              }}
+            />
+          )}
         </Field>
 
-        <Field required label={`Outdoor Design Temperature (${uiUnits.temperature})`}>
-          <input
-            type="number"
-            step="0.5"
-            required
-            aria-required="true"
-            placeholder="Coldest Design Day (Required)"
-            className="
-      w-full border border-slate-300 rounded-md px-3 py-2 placeholder-red-300
-    "
-            value={
-              toDisplayTemperature(project.region, project.outdoorTempC) ?? ""
-            }
-            onChange={(e) => {
-              const raw =
-                e.target.value === "" ? undefined : Number(e.target.value);
+        <Field
+          required
+          label={`Outdoor Design Temperature (${uiUnits.temperature})`}
+        >
+          {exportMode ? (
+            <DisplayValue>
+              {toDisplayTemperature(project.region, project.outdoorTempC)}{" "}
+              {uiUnits.temperature}
+            </DisplayValue>
+          ) : (
+            <input
+              type="number"
+              step="0.5"
+              required
+              aria-required="true"
+              placeholder="Coldest Design Day (Required)"
+              className="
+        w-full border border-slate-300 rounded-md px-3 py-2 placeholder-red-300
+      "
+              value={
+                toDisplayTemperature(project.region, project.outdoorTempC) ?? ""
+              }
+              onChange={(e) => {
+                const raw =
+                  e.target.value === "" ? undefined : Number(e.target.value);
 
-              onUpdate({
-                outdoorTempC: fromDisplayTemperature(project.region, raw),
-              });
-            }}
-          />
+                onUpdate({
+                  outdoorTempC: fromDisplayTemperature(project.region, raw),
+                });
+              }}
+            />
+          )}
         </Field>
 
         {/* Insulation Period */}
         <Field required label="Insulation Period">
-          <select
-            className="w-full border border-slate-300 rounded-md px-3 py-2"
-            value={project.insulationPeriod ?? ""}
-            onChange={(e) => {
-              const insulationPeriod = e.target.value as InsulationPeriodKey;
-              const updatedDefaults = getDefaultUValues({
-                ...project,
-                insulationPeriod,
-              });
-              onUpdate({
-                insulationPeriod,
-                customUOverrides: updatedDefaults,
-              });
-            }}
-          >
-            <option value="pre1980">Pre-1980 (Poor)</option>
-            <option value="y1980_2000">1980–2000 (Average)</option>
-            <option value="y2001_2015">2001–2015 (Good)</option>
-            <option value="y2016p">2016+ (Efficient)</option>
-          </select>
+          {exportMode ? (
+            <DisplayValue>
+              {{
+                pre1980: "Pre-1980 (Poor)",
+                y1980_2000: "1980–2000 (Average)",
+                y2001_2015: "2001–2015 (Good)",
+                y2016p: "2016+ (Efficient)",
+              }[project.insulationPeriod ?? ""] ?? "—"}
+            </DisplayValue>
+          ) : (
+            <select
+              className="w-full border border-slate-300 rounded-md px-3 py-2"
+              value={project.insulationPeriod ?? ""}
+              onChange={(e) => {
+                const insulationPeriod = e.target.value as InsulationPeriodKey;
+
+                const updatedDefaults = getDefaultUValues({
+                  ...project,
+                  insulationPeriod,
+                });
+
+                onUpdate({
+                  insulationPeriod,
+                  customUOverrides: updatedDefaults,
+                });
+              }}
+            >
+              <option value="pre1980">Pre-1980 (Poor)</option>
+              <option value="y1980_2000">1980–2000 (Average)</option>
+              <option value="y2001_2015">2001–2015 (Good)</option>
+              <option value="y2016p">2016+ (Efficient)</option>
+            </select>
+          )}
         </Field>
 
         <Field required label="Glazing Type">
-          <select
-            className="w-full border border-slate-300 rounded-md px-3 py-2"
-            value={project.glazing ?? ""}
-            onChange={(e) =>
-              onUpdate({ glazing: e.target.value as GlazingType })
-            }
-          >
-            <option value="single">Single</option>
-            <option value="double">Double</option>
-            <option value="triple">Triple</option>
-          </select>
+          {exportMode ? (
+            <DisplayValue>
+              {{
+                single: "Single",
+                double: "Double",
+                triple: "Triple",
+              }[project.glazing ?? ""] ?? "—"}
+            </DisplayValue>
+          ) : (
+            <select
+              className="w-full border border-slate-300 rounded-md px-3 py-2"
+              value={project.glazing ?? ""}
+              onChange={(e) =>
+                onUpdate({ glazing: e.target.value as GlazingType })
+              }
+            >
+              <option value="single">Single</option>
+              <option value="double">Double</option>
+              <option value="triple">Triple</option>
+            </select>
+          )}
         </Field>
       </div>
 
       {/* Advanced Section */}
-      <div className="mt-6">
-        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-          <h3 className="text-sm font-medium text-slate-700">
-            Advanced Defaults
-          </h3>
-          <button
-            type="button"
-            className=" font-medium text-teal-600 hover:text-teal-700 transition-colors"
-            onClick={() => setAdvancedOpen((s) => !s)}
-          >
-            {advancedOpen ? "Hide" : "Show"}
-          </button>
-        </div>
-
-        {advancedOpen && (
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Field label="Standards Mode" required>
-              <select
-                className="w-full border border-slate-300 rounded-md px-3 py-2"
-                value={project.standardsMode ?? ""}
-                onChange={(e) =>
-                  onUpdate({ standardsMode: e.target.value as StandardsMode })
-                }
+      {/* Advanced Section */}
+      {!exportMode && (
+        <div className="mt-6">
+          <div className="mt-6">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+              <h3 className="text-sm font-medium text-slate-700">
+                Advanced Defaults
+              </h3>
+              <button
+                type="button"
+                className=" font-medium text-teal-600 hover:text-teal-700 transition-colors"
+                onClick={() => setAdvancedOpen((s) => !s)}
               >
-                {standardsForRegion.map((s) => (
-                  <option key={s.key} value={s.key}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            {numericField(
-              "Safety Factor (%)",
-              "safetyFactorPct",
-              project.safetyFactorPct,
-              {
-                min: 0,
-                max: 100,
-                step: 0.1,
-                hint: "Typical 10–15%",
-              },
-            )}
-            {numericField(
-              "Heat-up Factor (%)",
-              "heatUpFactorPct",
-              project.heatUpFactorPct,
-              {
-                min: 0,
-                max: 200,
-                step: 0.1,
-                hint: "Warm-up multiplier (typical 20–30%)",
-              },
-            )}
-            {numericField(
-              `Psi allowance (${uiUnits.psi})`,
-              "psiAllowance_W_per_K",
-              project.psiAllowance_W_per_K,
-              {
-                min: 0,
-                max:
-                  project.region === "US" || project.region === "CA_IMPERIAL"
-                    ? 2
-                    : 1,
-                step:
-                  project.region === "US" || project.region === "CA_IMPERIAL"
-                    ? 0.01
-                    : 0.005,
-                hint: "Thermal bridging allowance",
-                toDisplay: (v) => toDisplayPsiAllowance(project.region, v),
-                fromDisplay: (v) => fromDisplayPsiAllowance(project.region, v),
-              },
-            )}
-
-            {numericField(
-              `Mechanical Vent. (${uiUnits.ventilation})`,
-              "mechVent_m3_per_h",
-              project.mechVent_m3_per_h,
-              {
-                min: 0,
-                max: 500, // realistic range for CFM
-                step: 1,
-                hint: `Ventilation rate (${uiUnits.ventilation})`,
-
-                // 🔽 DISPLAY ADAPTERS
-                toDisplay: (v) => toDisplayVentilation(project.region, v),
-                fromDisplay: (v) => fromDisplayVentilation(project.region, v),
-              },
-            )}
-            {numericField(
-              "Infiltration (ACH)",
-              "infiltrationACH",
-              project.infiltrationACH,
-              {
-                min: 0,
-                max: 5,
-                step: 0.01,
-                hint: "Typical 0.2–0.5",
-              },
-            )}
-
-            {/* Custom U-values */}
-            <div className="md:col-span-3 border-t border-slate-200 pt-3 mt-2">
-              <h4 className="text-sm font-medium text-slate-700 mb-2">
-                Custom U-Values
-              </h4>
-
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                {(
-                  Object.keys({
-                    wall: 0,
-                    window: 0,
-                    door: 0,
-                    roof: 0,
-                    floor: 0,
-                  }) as (keyof MaterialUValues)[]
-                ).map((key) => (
-                  <Field
-                    key={key}
-                    label={`${key[0].toUpperCase() + key.slice(1)} U (${
-                      uiUnits.uValue
-                    })`}
-                    required
-                  >
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      className="w-full border border-slate-300 rounded-md px-3 py-2"
-                      value={
-                        toDisplayUValue(
-                          project.region,
-                          project.customUOverrides?.[key],
-                        ) ?? ""
-                      }
-                      onChange={(e) => {
-                        const raw =
-                          e.target.value === ""
-                            ? undefined
-                            : Number(e.target.value);
-
-                        onUpdate({
-                          customUOverrides: {
-                            ...project.customUOverrides,
-                            [key]: fromDisplayUValue(project.region, raw),
-                          },
-                        });
-                      }}
-                    />
-                  </Field>
-                ))}
-              </div>
+                {advancedOpen ? "Hide" : "Show"}
+              </button>
             </div>
+
+            {advancedOpen && (
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+                <Field label="Standards Mode" required>
+                  <select
+                    className="w-full border border-slate-300 rounded-md px-3 py-2"
+                    value={project.standardsMode ?? ""}
+                    onChange={(e) =>
+                      onUpdate({
+                        standardsMode: e.target.value as StandardsMode,
+                      })
+                    }
+                  >
+                    {standardsForRegion.map((s) => (
+                      <option key={s.key} value={s.key}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                {numericField(
+                  "Safety Factor (%)",
+                  "safetyFactorPct",
+                  project.safetyFactorPct,
+                  {
+                    min: 0,
+                    max: 100,
+                    step: 0.1,
+                    hint: "Typical 10–15%",
+                  },
+                )}
+                {numericField(
+                  "Heat-up Factor (%)",
+                  "heatUpFactorPct",
+                  project.heatUpFactorPct,
+                  {
+                    min: 0,
+                    max: 200,
+                    step: 0.1,
+                    hint: "Warm-up multiplier (typical 20–30%)",
+                  },
+                )}
+                {numericField(
+                  `Psi allowance (${uiUnits.psi})`,
+                  "psiAllowance_W_per_K",
+                  project.psiAllowance_W_per_K,
+                  {
+                    min: 0,
+                    max:
+                      project.region === "US" ||
+                      project.region === "CA_IMPERIAL"
+                        ? 2
+                        : 1,
+                    step:
+                      project.region === "US" ||
+                      project.region === "CA_IMPERIAL"
+                        ? 0.01
+                        : 0.005,
+                    hint: "Thermal bridging allowance",
+                    toDisplay: (v) => toDisplayPsiAllowance(project.region, v),
+                    fromDisplay: (v) =>
+                      fromDisplayPsiAllowance(project.region, v),
+                  },
+                )}
+
+                {numericField(
+                  `Mechanical Vent. (${uiUnits.ventilation})`,
+                  "mechVent_m3_per_h",
+                  project.mechVent_m3_per_h,
+                  {
+                    min: 0,
+                    max: 500, // realistic range for CFM
+                    step: 1,
+                    hint: `Ventilation rate (${uiUnits.ventilation})`,
+
+                    // 🔽 DISPLAY ADAPTERS
+                    toDisplay: (v) => toDisplayVentilation(project.region, v),
+                    fromDisplay: (v) =>
+                      fromDisplayVentilation(project.region, v),
+                  },
+                )}
+                {numericField(
+                  "Infiltration (ACH)",
+                  "infiltrationACH",
+                  project.infiltrationACH,
+                  {
+                    min: 0,
+                    max: 5,
+                    step: 0.01,
+                    hint: "Typical 0.2–0.5",
+                  },
+                )}
+
+                {/* Custom U-values */}
+                <div className="md:col-span-3 border-t border-slate-200 pt-3 mt-2">
+                  <h4 className="text-sm font-medium text-slate-700 mb-2">
+                    Custom U-Values
+                  </h4>
+
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                    {(
+                      Object.keys({
+                        wall: 0,
+                        window: 0,
+                        door: 0,
+                        roof: 0,
+                        floor: 0,
+                      }) as (keyof MaterialUValues)[]
+                    ).map((key) => (
+                      <Field
+                        key={key}
+                        label={`${key[0].toUpperCase() + key.slice(1)} U (${
+                          uiUnits.uValue
+                        })`}
+                        required
+                      >
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          className="w-full border border-slate-300 rounded-md px-3 py-2"
+                          value={
+                            toDisplayUValue(
+                              project.region,
+                              project.customUOverrides?.[key],
+                            ) ?? ""
+                          }
+                          onChange={(e) => {
+                            const raw =
+                              e.target.value === ""
+                                ? undefined
+                                : Number(e.target.value);
+
+                            onUpdate({
+                              customUOverrides: {
+                                ...project.customUOverrides,
+                                [key]: fromDisplayUValue(project.region, raw),
+                              },
+                            });
+                          }}
+                        />
+                      </Field>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </SectionCard>
   );
 };

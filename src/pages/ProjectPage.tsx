@@ -1,5 +1,3 @@
-import { ProjectExportView } from "../components/export/ProjectExportView";
-
 import React, { useRef, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { uid } from "../utils/uid";
@@ -27,6 +25,7 @@ import { getDefaultUValues } from "../utils/uDefaults";
 import { RoomDetailsExport } from "../components/export/RoomDetailsExport";
 import { RoomLayoutExport } from "../components/export/RoomLayoutExport";
 import { SummaryCard } from "../components/summary/SummaryCard";
+import { ProjectForm } from "../components/forms/ProjectForm";
 
 export default function ProjectPage() {
   const { id } = useParams<{ id?: string }>();
@@ -37,13 +36,15 @@ export default function ProjectPage() {
   >(null);
   const [isSaving, setIsSaving] = useState(false);
   const { showMessage } = useSnackbar();
-  const exportRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement | null>(null);
   const detailRefs = useRef<HTMLDivElement[]>([]);
   const layoutRefs = useRef<HTMLDivElement[]>([]);
   const summaryRef = useRef<HTMLDivElement | null>(null);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [activeTab, setActiveTab] = useState<"details" | "rooms" | "summary">(
+    "details",
+  );
 
   useEffect(() => {
     const buildLogo = async () => {
@@ -96,6 +97,7 @@ export default function ProjectPage() {
   };
   const handleExportPDF = async () => {
     try {
+      handleSaveProject(false);
       setIsExporting(true);
 
       await exportPDF(
@@ -130,13 +132,14 @@ export default function ProjectPage() {
       doorArea_m2: 0,
       ceilingExposed: false,
       floorExposed: false,
-      setpointC: 0, // Default indoor setpoint temperature (°C)
+      setpointC: 21, // Default indoor setpoint temperature (°C)
       joistSpacing: 16, // Default joist spacing
       floorCover: "tile_stone", // Default floor type
       installMethod: "DRILLING", // Default install method
       floorOnGround: false,
     };
     setProject({ ...project, rooms: [...project.rooms, newRoom] });
+    showMessage("Room Added", "success");
   };
 
   const updateRoom = (roomName: string, patch: Partial<RoomInput>) => {
@@ -158,10 +161,20 @@ export default function ProjectPage() {
     project || undefined,
   );
 
-  const handleSaveProject = async () => {
+  const handleSaveProject = async (
+    arg?: boolean | React.MouseEvent<HTMLButtonElement>,
+  ) => {
+    // If called from button click → arg is event
+    // If called manually → arg is boolean
+    const showNotification = typeof arg === "boolean" ? arg : true;
+
     if (!project) return;
+
     try {
+      setIsSaving(true);
+
       projectSchema.parse(project);
+
       project.rooms.forEach((room, index) => {
         try {
           roomSchema.parse(room);
@@ -172,10 +185,11 @@ export default function ProjectPage() {
         }
       });
 
-      setIsSaving(true);
       await saveProjectTodb(project, showMessage);
-      setIsSaving(false);
-      showMessage("Project saved successfully.", "success");
+
+      if (showNotification) {
+        showMessage("Project saved successfully.", "success");
+      }
     } catch (err) {
       if (err instanceof z.ZodError) {
         showMessage(err.issues?.[0]?.message ?? "Validation failed", "error");
@@ -205,8 +219,16 @@ export default function ProjectPage() {
         <main className="p-4 sm:p-4 max-w-7xl mx-auto min-h-screen bg-white">
           {/* Toolbar: Back + Units + Save/Delete */}
           <div
-            className="flex flex-col sm:flex-row sm:items-center sm:justify-between 
-      gap-4 sm:gap-6 mb-6 bg-white border-b border-slate-100 pb-4 sm:pb-0"
+            className="
+    fixed
+    top-[64px] lg:top-[72px]
+    left-4 right-4
+    lg:left-[120px] lg:right-[120px]
+    z-50 bg-white
+    flex flex-col sm:flex-row sm:items-center sm:justify-between
+    gap-4 sm:gap-6 border-b border-slate-100 px-4 py-2
+    mx-auto
+  "
           >
             {/* LEFT SIDE */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
@@ -225,6 +247,16 @@ export default function ProjectPage() {
 
             {/* RIGHT SIDE: Actions */}
             <div className="flex flex-row justify-end items-center gap-3 w-full sm:w-auto flex-wrap sm:flex-nowrap">
+              {activeTab === "rooms" && (
+                <button
+                  onClick={addRoom}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold
+             bg-[#22D3EE] text-[#042029] hover:bg-[#18c6dd] transition-colors shadow-sm"
+                >
+                  + Add Room
+                </button>
+              )}
+
               <button
                 onClick={handleSaveProject}
                 disabled={isSaving}
@@ -272,15 +304,15 @@ export default function ProjectPage() {
           </div>
 
           {/* Project Editor */}
-          <div className="w-full overflow-x-auto">
+          <div className="w-full overflow-x-auto sm:mt-10">
             <ProjectEditor
               project={project}
               rooms={project.rooms}
               onUpdateProject={updateProject}
               onUpdateRoom={updateRoom}
-              onAddRoom={addRoom}
               onRemoveRoom={removeRoom}
               summary={summary}
+              onTabChange={(tab) => setActiveTab(tab)} // ✅
             />
           </div>
         </main>
@@ -392,7 +424,8 @@ export default function ProjectPage() {
                 />
               </div>
             )}
-
+            <ProjectForm project={project} onUpdate={() => {}} exportMode />
+            <div style={{ height: "16px" }}></div>
             <SummaryCard project={project} summary={summary} />
           </div>
         )}

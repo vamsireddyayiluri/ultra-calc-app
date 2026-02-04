@@ -32,7 +32,7 @@ export function SectionCard({
           <img
             src={logoBase64}
             alt="Logo"
-            className="h-8 object-contain mt-3" // small size
+            className="h-14 object-contain mt-3" // small size
           />
         )}
       </div>

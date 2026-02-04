@@ -48,7 +48,7 @@ export default function RegisterForm() {
 
       autocompleteRef.current = new window.google.maps.places.Autocomplete(
         inputRef.current,
-        options
+        options,
       );
 
       autocompleteRef.current.addListener("place_changed", () => {
@@ -88,7 +88,7 @@ export default function RegisterForm() {
           const res = await fetch(
             `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${
               import.meta.env.VITE_GOOGLE_API_KEY
-            }`
+            }`,
           );
           const data = await res.json();
           if (data.results && data.results.length > 0) {
@@ -102,7 +102,7 @@ export default function RegisterForm() {
       },
       () => {
         setLocationError("Unable to fetch your location. Please allow access.");
-      }
+      },
     );
   }, []);
   const validatePhoneNumber = (number: any) => {
@@ -160,7 +160,7 @@ export default function RegisterForm() {
         address: auth.address.trim(),
       };
 
-      await registerAction(payload,showMessage, navigate);
+      await registerAction(payload, showMessage, navigate);
     } catch (error: any) {
       const message = error?.message || "Registration failed.";
       console.error(error.message);
@@ -176,14 +176,14 @@ export default function RegisterForm() {
   };
 
   return (
-    <div className="flex justify-center items-center bg-[#FFF8EE] min-h-screen px-4 py-8">
+    <div className="flex justify-center items-center bg-gray-100 min-h-screen px-4 py-8">
       <form
         onSubmit={handleRegister}
         className="bg-white p-6 sm:p-8 rounded-2xl shadow-lg w-full max-w-md transition-all"
       >
         {/* Header */}
         <div className="flex flex-col items-center mb-4">
-          <img src={logo} alt="logo" style={{ maxWidth: 160 }} />
+          <img src={logo} alt="logo" className="h-18 object-contain" />
           <h2 className="mt-5 text-xl font-semibold text-gray-800">
             Create Your Free Account
           </h2>

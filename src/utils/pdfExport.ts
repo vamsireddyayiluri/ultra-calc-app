@@ -122,16 +122,15 @@ export async function exportPDF(
     await renderPage(pdf, el, mode);
     firstPage = false;
   };
+  /* ───────────── SUMMARY ───────────── */
+  if (summaryRef) {
+    await addPage(summaryRef, "text");
+  }
 
   /* ───────────── ROOMS ───────────── */
   for (let i = 0; i < detailRefs.length; i++) {
     await addPage(detailRefs[i], "text"); // ✅ details → JPEG
     await addPage(layoutRefs[i], "layout"); // ✅ layout → PNG
-  }
-
-  /* ───────────── SUMMARY ───────────── */
-  if (summaryRef) {
-    await addPage(summaryRef, "text");
   }
 
   pdf.save("project-export.pdf");

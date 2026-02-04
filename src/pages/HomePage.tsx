@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { ProjectSettings, RoomInput } from "../models/projectTypes";
 import { ProjectCard } from "../components/projects/ProjectCard";
 import { ProjectEditor } from "../components/projects/ProjectEditor";
@@ -43,7 +43,7 @@ export default function HomePage() {
   const updateProject = (patch: Partial<ProjectSettings>) => {
     if (!activeProject) return;
     setProjects((prev) =>
-      prev.map((p) => (p.id === activeProject.id ? { ...p, ...patch } : p))
+      prev.map((p) => (p.id === activeProject.id ? { ...p, ...patch } : p)),
     );
     setActiveProject((prev) => (prev ? { ...prev, ...patch } : prev));
   };
@@ -51,41 +51,13 @@ export default function HomePage() {
   const updateRoom = (id: string, patch: Partial<RoomInput>) => {
     if (!activeProject) return;
     const updatedRooms = activeProject.rooms.map((r) =>
-      r.id === id ? { ...r, ...patch } : r
+      r.id === id ? { ...r, ...patch } : r,
     );
     setActiveProject({ ...activeProject, rooms: updatedRooms });
     setProjects((prev) =>
       prev.map((p) =>
-        p.id === activeProject.id ? { ...p, rooms: updatedRooms } : p
-      )
-    );
-  };
-
-  const addRoom = () => {
-    if (!activeProject) return;
-    const newRoom: RoomInput = {
-      id: uid(),
-      name: `Room ${activeProject.rooms.length + 1}`,
-      length_m: 0,
-      width_m: 0,
-      height_m: 0,
-      exteriorLen_m: 0,
-      windowArea_m2: 0,
-      doorArea_m2: 0,
-      ceilingExposed: false,
-      floorExposed: false,
-      installMethod: "DRILLING",
-      setpointC: 0,
-      joistSpacing: 16,
-      floorCover: "tile_stone",
-      floorOnGround: false,
-    };
-    const updatedRooms = [...activeProject.rooms, newRoom];
-    setActiveProject({ ...activeProject, rooms: updatedRooms });
-    setProjects((prev) =>
-      prev.map((p) =>
-        p.id === activeProject.id ? { ...p, rooms: updatedRooms } : p
-      )
+        p.id === activeProject.id ? { ...p, rooms: updatedRooms } : p,
+      ),
     );
   };
 
@@ -95,14 +67,14 @@ export default function HomePage() {
     setActiveProject({ ...activeProject, rooms: updatedRooms });
     setProjects((prev) =>
       prev.map((p) =>
-        p.id === activeProject.id ? { ...p, rooms: updatedRooms } : p
-      )
+        p.id === activeProject.id ? { ...p, rooms: updatedRooms } : p,
+      ),
     );
   };
 
   const summary = useProjectSummary(
     activeProject?.rooms || [],
-    activeProject || undefined
+    activeProject || undefined,
   );
 
   // 👇 Skeleton grid component
@@ -111,7 +83,7 @@ export default function HomePage() {
       {[...Array(9)].map((_, i) => (
         <div
           key={i}
-          className="rounded-xl bg-[#FFF5E6] p-0 shadow-md ring-1 ring-gray-100"
+          className="rounded-xl bg-white p-0 shadow-sm ring-1 ring-gray-200"
         >
           <Skeleton
             variant="rectangular"
@@ -125,8 +97,8 @@ export default function HomePage() {
 
   return (
     <AppLayout>
-      <div className="min-h-screen bg-[#FFF8EE] text-slate-800 font-sans">
-        <main className="mx-auto px-6 py-8 max-w-7xl bg-[#FFF8EE]">
+      <div className="min-h-screen bg-gray-100 text-slate-800 font-sans">
+        <main className="mx-auto px-6 py-8 max-w-7xl bg-gray-100">
           {activeProject ? (
             <section
               className="w-full rounded-xl p-5 bg-white shadow-md ring-1 ring-gray-100"
@@ -140,7 +112,6 @@ export default function HomePage() {
                 rooms={activeProject.rooms}
                 onUpdateProject={updateProject}
                 onUpdateRoom={updateRoom}
-                onAddRoom={addRoom}
                 onRemoveRoom={removeRoom}
                 summary={summary}
               />

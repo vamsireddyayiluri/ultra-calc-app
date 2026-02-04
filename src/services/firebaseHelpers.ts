@@ -34,14 +34,12 @@ export async function saveProjectTodb(project: any, showMessage: any) {
       // Update existing project
       const docRef = doc(db, "projects", project.id);
       await setDoc(docRef, project, { merge: true });
-      showMessage("Project updated successfully", "success");
       return project.id;
     } else {
       // Add new project
       project.id = uid();
       const colRef = collection(db, "projects");
       const docRef = await addDoc(colRef, project);
-      showMessage("Project saved successfully", "success");
       return docRef.id;
     }
   } catch (error) {
