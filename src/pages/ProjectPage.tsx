@@ -231,22 +231,22 @@ export default function ProjectPage() {
   "
           >
             {/* LEFT SIDE */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
+            <div
+              className="
+    grid grid-cols-2 gap-3
+    sm:flex sm:flex-row sm:items-center sm:gap-6
+  "
+            >
               <button
                 onClick={() => navigate("/")}
                 className="inline-flex items-center justify-center gap-2 px-4 py-2 
     rounded-lg text-sm font-medium bg-slate-100 text-slate-700 
-    hover:bg-slate-200 transition-colors whitespace-nowrap min-w-fit
+    hover:bg-slate-200 transition-colors whitespace-nowrap 
     focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/30"
               >
                 ← Back
               </button>
 
-              {/* Units Switcher */}
-            </div>
-
-            {/* RIGHT SIDE: Actions */}
-            <div className="flex flex-row justify-end items-center gap-3 w-full sm:w-auto flex-wrap sm:flex-nowrap">
               {activeTab === "rooms" && (
                 <button
                   onClick={addRoom}
@@ -257,6 +257,11 @@ export default function ProjectPage() {
                 </button>
               )}
 
+              {/* Units Switcher */}
+            </div>
+
+            {/* RIGHT SIDE: Actions */}
+            <div className="flex flex-row justify-end items-center gap-3 w-full sm:w-auto flex-wrap sm:flex-nowrap">
               <button
                 onClick={handleSaveProject}
                 disabled={isSaving}
@@ -304,7 +309,7 @@ export default function ProjectPage() {
           </div>
 
           {/* Project Editor */}
-          <div className="w-full overflow-x-auto sm:mt-10">
+          <div className="w-full overflow-x-auto pt-20">
             <ProjectEditor
               project={project}
               rooms={project.rooms}

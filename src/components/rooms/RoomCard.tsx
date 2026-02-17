@@ -28,7 +28,7 @@ import { getInstallMethodLabel } from "../../utils/formatProjectSummary";
 import { buildLayout } from "../../layout/layoutEngine";
 import { FloorLayoutSvg } from "../../layout/FloorLayoutSvg";
 import { RightSidebar } from "../../layout/RightSidebar";
-import { formatSpacing } from "../../utils/formatResults";
+import { formatSpacing, formatTubeSizing } from "../../utils/formatResults";
 import {
   inlineNestedSvgImages,
   loadImageAsBase64,
@@ -570,7 +570,10 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             </div>
 
             <div className="text-slate-600">Tube Size</div>
-            <div className="text-right">{ultra.selection.tubeSize}</div>
+            <div className="text-right">{formatTubeSizing(
+                    project.region,
+                    ultra.selection.tubeSize,
+                  )}</div>
 
             <div className="text-slate-600">Tubing Length</div>
             <div className="text-right font-semibold">

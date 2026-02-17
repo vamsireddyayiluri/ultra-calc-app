@@ -21,7 +21,7 @@ export type InstallMethod =
 
 export type JoistKey = 12 | 16 | 19 | 24;
 export type LoadMode = "LL" | "HL" | "HighOutput";
-export type TubeSize = "16mm" | "20mm";
+export type TubeSize = 16 | 20;
 
 export type HeatLoadInput =
   | { unit: "BTU_FT2"; value: number }
@@ -228,10 +228,10 @@ export function ultraCalc(input: UltraCalcInput): UltraCalcOutput {
 
   const tubeSize: TubeSize =
     input.method === "INSLAB"
-      ? "16mm"
+      ? 16
       : loadBTU > THRESHOLDS.tubeUpgradeBTU
-      ? "20mm"
-      : "16mm";
+      ? 20
+      : 16;
 
   const supplementalWarning = loadBTU > THRESHOLDS.supplementalBTU;
 
@@ -281,7 +281,7 @@ export function ultraCalc(input: UltraCalcInput): UltraCalcOutput {
 
     topdown_ultra_clips = baseSupports * 2;
 
-    if (tubeSize === "16mm") {
+    if (tubeSize === 16) {
       topdown_uc1212 = baseSupports;
     } else {
       topdown_uc1234 = baseSupports;
