@@ -218,98 +218,75 @@ export default function ProjectPage() {
       >
         <main className="p-4 sm:p-4 max-w-7xl mx-auto min-h-screen bg-white">
           {/* Toolbar: Back + Units + Save/Delete */}
-          <div
-            className="
-    fixed
-    top-[64px] lg:top-[72px]
-    left-4 right-4
-    lg:left-[120px] lg:right-[120px]
-    z-50 bg-white
-    flex flex-col sm:flex-row sm:items-center sm:justify-between
-    gap-4 sm:gap-6 border-b border-slate-100 px-4 py-2
-    mx-auto
-  "
-          >
-            {/* LEFT SIDE */}
-            <div
-              className="
-    grid grid-cols-2 gap-3
-    sm:flex sm:flex-row sm:items-center sm:gap-6
-  "
-            >
-              <button
-                onClick={() => navigate("/")}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 
-    rounded-lg text-sm font-medium bg-slate-100 text-slate-700 
-    hover:bg-slate-200 transition-colors whitespace-nowrap 
-    focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/30"
-              >
-                ← Back
-              </button>
-
-              {activeTab === "rooms" && (
+          {/* Toolbar */}
+          <div className="sticky top-[64px] z-40 bg-white border-b border-slate-200">
+            <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              {/* LEFT: Navigation + Context */}
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* Back */}
                 <button
-                  onClick={addRoom}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold
-             bg-[#22D3EE] text-[#042029] hover:bg-[#18c6dd] transition-colors shadow-sm"
+                  onClick={() => navigate("/")}
+                  className="px-3 py-2 text-sm font-medium rounded-md border border-slate-300 text-slate-700 hover:bg-slate-100 transition"
                 >
-                  + Add Room
+                  ← Back
                 </button>
-              )}
 
-              {/* Units Switcher */}
-            </div>
+                {/* Add Room */}
+                {activeTab === "rooms" && (
+                  <button
+                    onClick={addRoom}
+                    className="px-3 py-2 text-sm font-semibold rounded-md bg-cyan-500 text-white hover:bg-cyan-600 transition shadow-sm"
+                  >
+                    + Add Room
+                  </button>
+                )}
+              </div>
 
-            {/* RIGHT SIDE: Actions */}
-            <div className="flex flex-row justify-end items-center gap-3 w-full sm:w-auto flex-wrap sm:flex-nowrap">
-              <button
-                onClick={handleSaveProject}
-                disabled={isSaving}
-                className={`inline-flex justify-center items-center gap-2 px-5 py-2.5 
-      rounded-lg text-sm font-semibold
-      ${isSaving ? "bg-gray-400" : "bg-[#1E3A8A] hover:bg-[#17306f]"} 
-      text-white transition-colors shadow-sm
-      focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/30`}
-              >
-                {isSaving ? "Saving..." : "Save Project"}
-              </button>
-              {/* Export PDF */}
-              <button
-                onClick={handleExportPDF}
-                disabled={isExporting}
-                className={`
-    inline-flex items-center justify-center gap-2
-    px-6 py-2.5 rounded-full
-    text-sm font-semibold
-    transition shadow-sm
-    focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/30
-    ${
-      isExporting
-        ? "bg-slate-200 text-slate-400 cursor-not-allowed"
-        : "bg-slate-100 text-slate-800 hover:bg-slate-200"
-    }
-  `}
-              >
-                {isExporting ? "Exporting..." : "Export PDF"}
-              </button>
-
-              {/* Delete */}
-              {project.id && (
+              {/* RIGHT: Actions */}
+              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                {/* Save */}
                 <button
-                  onClick={() => setShowDeleteDialog(true)}
-                  className="inline-flex justify-center items-center gap-2 px-5 py-2.5 
-      rounded-lg text-sm font-semibold 
-      bg-red-50 text-red-700 hover:bg-red-100 transition-colors
-      focus:outline-none focus:ring-2 focus:ring-red-300"
+                  onClick={handleSaveProject}
+                  disabled={isSaving}
+                  className={`px-3 py-2 text-sm font-semibold rounded-md text-white transition shadow-sm
+        ${
+          isSaving
+            ? "bg-slate-400 cursor-not-allowed"
+            : "bg-blue-900 hover:bg-blue-800"
+        }`}
                 >
-                  Delete
+                  {isSaving ? "Saving..." : "Save Project"}
                 </button>
-              )}
+
+                {/* Export */}
+                <button
+                  onClick={handleExportPDF}
+                  disabled={isExporting}
+                  className={`px-3 py-2 text-sm font-medium rounded-md border border-slate-300 transition
+        ${
+          isExporting
+            ? "text-slate-400 bg-slate-100 cursor-not-allowed"
+            : "text-slate-700 hover:bg-slate-100"
+        }`}
+                >
+                  {isExporting ? "Exporting..." : "Export PDF"}
+                </button>
+
+                {/* Delete */}
+                {project.id && (
+                  <button
+                    onClick={() => setShowDeleteDialog(true)}
+                    className="px-3 py-2 text-sm font-medium rounded-md border border-red-300 text-red-600 hover:bg-red-50 transition"
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Project Editor */}
-          <div className="w-full overflow-x-auto pt-20">
+          <div className="w-full overflow-x-auto pt-4">
             <ProjectEditor
               project={project}
               rooms={project.rooms}

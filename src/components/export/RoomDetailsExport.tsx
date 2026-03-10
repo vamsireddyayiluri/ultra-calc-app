@@ -23,7 +23,6 @@ export const RoomDetailsExport = React.forwardRef<HTMLDivElement, Props>(
 
       buildLogo();
     }, []);
-    console.log("Rendering RoomDetailsExport for room:", logoBase64);
     return (
       <div
         ref={ref}

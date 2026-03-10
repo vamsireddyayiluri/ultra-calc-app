@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState } from "react";
 import {
   TextField,
   Button,
@@ -31,80 +31,9 @@ export default function RegisterForm() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const autocompleteRef = useRef<any>(null);
-  const [locationError, setLocationError] = useState<string | null>(null);
+
   const { showMessage } = useSnackbar();
 
-  // 📍 Setup Google Autocomplete
-  useEffect(() => {
-    const initAutocomplete = () => {
-      if (!window.google || !inputRef.current) return;
-
-      const options = {
-        fields: ["geometry", "formatted_address"],
-        types: ["address"],
-      };
-
-      autocompleteRef.current = new window.google.maps.places.Autocomplete(
-        inputRef.current,
-        options,
-      );
-
-      autocompleteRef.current.addListener("place_changed", () => {
-        const place = autocompleteRef.current.getPlace();
-        if (!place.geometry) {
-          setLocationError("No details found for this address.");
-          return;
-        }
-        const address = place.formatted_address;
-        setAuth((prev) => ({ ...prev, address }));
-        setLocationError(null);
-      });
-    };
-
-    if (window.google && window.google.maps) {
-      initAutocomplete();
-    } else {
-      const interval = setInterval(() => {
-        if (window.google && window.google.maps) {
-          initAutocomplete();
-          clearInterval(interval);
-        }
-      }, 500);
-      return () => clearInterval(interval);
-    }
-  }, []);
-  useEffect(() => {
-    if (!("geolocation" in navigator)) {
-      setLocationError("Geolocation not supported by your browser.");
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude, longitude } = pos.coords;
-        try {
-          const res = await fetch(
-            `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${
-              import.meta.env.VITE_GOOGLE_API_KEY
-            }`,
-          );
-          const data = await res.json();
-          if (data.results && data.results.length > 0) {
-            const address = data.results[0].formatted_address;
-            setAuth((prev) => ({ ...prev, address }));
-            if (inputRef.current) inputRef.current.value = address;
-          }
-        } catch (err) {
-          console.error("Reverse geocoding failed:", err);
-        }
-      },
-      () => {
-        setLocationError("Unable to fetch your location. Please allow access.");
-      },
-    );
-  }, []);
   const validatePhoneNumber = (number: any) => {
     const cleaned = number.replace(/\D/g, "");
     return cleaned.length >= 9 && cleaned.length <= 15;
@@ -254,14 +183,11 @@ export default function RegisterForm() {
             label="Address"
             required
             fullWidth
-            inputRef={inputRef} // 👈 Google Places needs this
             value={auth.address}
             onChange={(e) => setAuth({ ...auth, address: e.target.value })}
             placeholder="Street, City, State/Province, Zip/Postal Code"
             variant="outlined"
             margin="dense"
-            error={Boolean(locationError)}
-            helperText={locationError ?? ""}
           />
 
           <TextField

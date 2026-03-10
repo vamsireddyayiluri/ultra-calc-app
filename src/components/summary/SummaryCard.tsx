@@ -31,7 +31,7 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
   const display = formatProjectSummary(project.region, summary);
 
   return (
-    <SectionCard title={`Project Summary `}>
+    <SectionCard title={`Project Summary`}>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <SummaryRow
           label="🔥 Total Heat Load"
@@ -46,6 +46,24 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
         <SummaryRow label="🧩 Total Ultra-Fins" value={display.fins} />
         <SummaryRow label="🧷 Total Clips / Hangers" value={display.clips} />
         <SummaryRow label="🔁 Total Loops" value={display.loops} />
+
+        {/* ✅ NEW — Water Temperature Range */}
+        {summary.waterTempRange_C && (
+          <>
+            <SummaryRow
+              label="🌡 Required Water Temperature"
+              value={`${Math.round(summary.avgWaterTemp_C)}°C (${Math.round((summary.avgWaterTemp_C * 9) / 5 + 32)}°F)`}
+            />
+
+            <div className="text-xs text-slate-500 mt-2">
+              <strong>Typical Operating Range:</strong> 35–82°C (95–180°F).
+              Actual operating temperature depends on outdoor conditions and
+              heat load. Higher temperatures may be used if additional heat
+              output is required.
+            </div>
+          </>
+        )}
+
         {summary.ultraFinSpacing_mm && (
           <SummaryRow
             label="📐 Ultra-Fin Spacing (C-C)"
@@ -54,7 +72,7 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
                 ? "Varies by room"
                 : formatSpacing(
                     project.region,
-                    Number(summary.ultraFinSpacing_mm)
+                    Number(summary.ultraFinSpacing_mm),
                   )
             }
           />
@@ -68,7 +86,7 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
                 ? "Varies by room"
                 : formatSpacing(
                     project.region,
-                    Number(summary.tubingSpacing_mm)
+                    Number(summary.tubingSpacing_mm),
                   )
             }
           />

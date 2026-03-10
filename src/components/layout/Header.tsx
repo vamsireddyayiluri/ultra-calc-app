@@ -63,7 +63,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-white text-slate-900 shadow-sm border-b border-gray-200">
+    <header className="sticky top-0 z-[100] bg-white text-slate-900 shadow-sm border-b border-gray-200">
       <div className="flex items-center justify-between px-6 py-3">
         {/* Left: Logo + Title */}
         <div className="flex items-center gap-3">
@@ -81,7 +81,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Right: Icons */}
-        <div className="relative flex items-center gap-3" ref={dropdownRef}>
+        <div className="relative flex items-center gap-3 " ref={dropdownRef}>
           {/* ✅ Home icon (show only when NOT on home page) */}
           {!isHomePage && (
             <button
@@ -113,7 +113,8 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* ✅ Dropdown Menu (below avatar, not overlapping) */}
           {menuOpen && (
-            <div className="absolute right-0 top-[calc(100%+0.5rem)] w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-2">
+            <div className="absolute right-0 top-[calc(100%+0.5rem)] z-[60] w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-2">
+              {" "}
               {/* Hide Profile Settings when already on profile page */}
               {!isProfilePage && (
                 <button

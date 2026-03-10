@@ -1,5 +1,5 @@
 // src/components/forms/ProjectForm.tsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { SectionCard } from "../layout/SectionCard";
 import { Field } from "./Field";
 import type {
@@ -39,11 +39,6 @@ const REGION_OPTIONS: { key: Region; label: string }[] = [
   { key: "CA_IMPERIAL", label: "Canada (Imperial U-values)" },
 ];
 
-declare global {
-  interface Window {
-    google: any;
-  }
-}
 const STANDARDS_OPTIONS: { key: StandardsMode; label: string }[] = [
   { key: "BS_EN_12831", label: "BS EN 12831" },
   { key: "ASHRAE", label: "ASHRAE" },
@@ -59,86 +54,11 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
 }) => {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const autocompleteRef = useRef<any>(null);
 
   const regionLabel = project.region ? project.region : "Canada";
   const standardsLabel = project.standardsMode ?? "BS EN 12831";
 
   const uiUnits = getUIUnits(project.region);
-
-  // === Auto-detect location ===
-  useEffect(() => {
-    if (project.id) return;
-    if (!("geolocation" in navigator)) {
-      setError("Geolocation not supported by your browser.");
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude, longitude } = pos.coords;
-        try {
-          const res = await fetch(
-            `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${
-              import.meta.env.VITE_GOOGLE_API_KEY
-            }`,
-          );
-          const data = await res.json();
-          if (data.results && data.results.length > 0) {
-            const address = data.results[0].formatted_address;
-            onUpdate({ address });
-            if (inputRef.current) inputRef.current.value = address;
-          }
-        } catch (err) {
-          console.error("Reverse geocoding failed:", err);
-        }
-      },
-      () => {
-        setError(
-          "Unable to fetch your location. Please allow location access.",
-        );
-      },
-    );
-  }, [project.id]);
-
-  // === Google Places Autocomplete ===
-  useEffect(() => {
-    const initAutocomplete = () => {
-      if (!window.google || !inputRef.current) return;
-
-      const options = {
-        fields: ["geometry", "formatted_address"],
-        types: ["address"],
-      };
-      autocompleteRef.current = new window.google.maps.places.Autocomplete(
-        inputRef.current,
-        options,
-      );
-      autocompleteRef.current.addListener("place_changed", () => {
-        const place = autocompleteRef.current.getPlace();
-        if (!place.geometry) {
-          setError("No details found for this address.");
-          return;
-        }
-        const address = place.formatted_address;
-        onUpdate({ address });
-        setError(null);
-      });
-    };
-
-    if (window.google && window.google.maps) {
-      initAutocomplete();
-    } else {
-      const interval = setInterval(() => {
-        if (window.google && window.google.maps) {
-          initAutocomplete();
-          clearInterval(interval);
-        }
-      }, 500);
-      return () => clearInterval(interval);
-    }
-  }, [project.id]);
 
   const standardsForRegion = useMemo(() => {
     return STANDARDS_OPTIONS;
@@ -264,14 +184,11 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
             <DisplayValue>{project.address}</DisplayValue>
           ) : (
             <input
-              ref={inputRef}
               className="w-full border border-slate-300 rounded-md px-3 py-2"
-              defaultValue={project.address ?? ""}
+              value={project.address ?? ""}
               onChange={(e) => onUpdate({ address: e.target.value })}
             />
           )}
-
-          {error && <div className="text-xs text-red-500 mt-1">{error}</div>}
         </Field>
 
         {/* Design Temperatures */}

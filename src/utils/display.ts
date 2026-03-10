@@ -10,7 +10,7 @@ const PSI_BTUHR_F_TO_WK = 1 / 1.895;
 
 export function toDisplayPsiAllowance(
   region: Region,
-  value?: number
+  value?: number,
 ): number | undefined {
   if (value == null) return undefined;
 
@@ -25,7 +25,7 @@ export function toDisplayPsiAllowance(
 
 export function fromDisplayPsiAllowance(
   region: Region,
-  value?: number
+  value?: number,
 ): number | undefined {
   if (value == null) return undefined;
 
@@ -40,7 +40,7 @@ export function fromDisplayPsiAllowance(
 
 export function toDisplayUValue(
   region: Region,
-  value?: number
+  value?: number,
 ): number | undefined {
   if (value == null) return undefined;
 
@@ -55,7 +55,7 @@ export function toDisplayUValue(
 
 export function fromDisplayUValue(
   region: Region,
-  value?: number
+  value?: number,
 ): number | undefined {
   if (value == null) return undefined;
 
@@ -70,7 +70,7 @@ export function fromDisplayUValue(
 
 export function toDisplayVentilation(
   region: Region,
-  value?: number
+  value?: number,
 ): number | undefined {
   if (value == null) return undefined;
 
@@ -85,7 +85,7 @@ export function toDisplayVentilation(
 
 export function fromDisplayVentilation(
   region: Region,
-  value?: number
+  value?: number,
 ): number | undefined {
   if (value == null) return undefined;
 
@@ -100,7 +100,7 @@ export function fromDisplayVentilation(
 
 export function toDisplayTemperature(
   region: Region,
-  value?: number
+  value?: number,
 ): number | undefined {
   if (value == null) return undefined;
 
@@ -115,7 +115,7 @@ export function toDisplayTemperature(
 
 export function fromDisplayTemperature(
   region: Region,
-  value?: number
+  value?: number,
 ): number | undefined {
   if (value == null) return undefined;
 
@@ -141,32 +141,31 @@ export function fromDisplayLength(region: Region, value?: number) {
 }
 export function toDisplayArea(
   region: Region,
-  value?: number
+  value?: number,
 ): number | undefined {
   if (value == null) return undefined;
 
   switch (region) {
     case "US":
     case "CA_IMPERIAL":
-      return Math.round(m2_to_ft2(value) * 100) / 100; // 2 decimals
+      return m2_to_ft2(value);
     default:
-      return Math.round(value * 100) / 100; // m²
+      return value;
   }
 }
-
 /**
  * Convert UI display area → stored metric area
  */
 export function fromDisplayArea(
   region: Region,
-  value?: number
+  value?: number,
 ): number | undefined {
   if (value == null) return undefined;
 
   switch (region) {
     case "US":
     case "CA_IMPERIAL":
-      return Math.round(ft2_to_m2(value) * 1000) / 1000;
+      return ft2_to_m2(value); // no rounding here
     default:
       return value;
   }

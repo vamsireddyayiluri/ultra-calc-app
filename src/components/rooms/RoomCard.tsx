@@ -81,6 +81,26 @@ export const RoomCard: React.FC<RoomCardProps> = ({
   const [layout, setLayout] = React.useState<ReturnType<
     typeof buildLayout
   > | null>(null);
+  const [windowInput, setWindowInput] = React.useState<string>("");
+  const [doorInput, setDoorInput] = React.useState<string>("");
+
+  React.useEffect(() => {
+    if (room.windowArea_m2 != null) {
+      const val = toDisplayArea(project.region, room.windowArea_m2);
+      setWindowInput(val != null ? val.toFixed(2) : "");
+    } else {
+      setWindowInput("");
+    }
+  }, [room.windowArea_m2, project.region]);
+
+  React.useEffect(() => {
+    if (room.doorArea_m2 != null) {
+      const val = toDisplayArea(project.region, room.doorArea_m2);
+      setDoorInput(val != null ? val.toFixed(2) : "");
+    } else {
+      setDoorInput("");
+    }
+  }, [room.doorArea_m2, project.region]);
 
   // 🔹 Build layout + load images asynchronously
   React.useEffect(() => {
@@ -347,16 +367,20 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           >
             {exportMode ? (
               <DisplayValue>
-                {toDisplayArea(project.region, room.windowArea_m2)}
+                {toDisplayArea(project.region, room.windowArea_m2)?.toFixed(2)}
               </DisplayValue>
             ) : (
               <input
                 type="number"
                 className="w-full border border-slate-300 rounded-md px-3 py-2"
-                value={toDisplayArea(project.region, room.windowArea_m2) ?? ""}
+                value={windowInput}
                 onChange={(e) => {
+                  setWindowInput(e.target.value); // ✅ free typing
+                }}
+                onBlur={() => {
                   const raw =
-                    e.target.value === "" ? undefined : Number(e.target.value);
+                    windowInput === "" ? undefined : Number(windowInput);
+
                   onUpdateRoom(room.name, {
                     windowArea_m2: fromDisplayArea(project.region, raw),
                   });
@@ -373,16 +397,19 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           >
             {exportMode ? (
               <DisplayValue>
-                {toDisplayArea(project.region, room.doorArea_m2)}
+                {toDisplayArea(project.region, room.doorArea_m2)?.toFixed(2)}
               </DisplayValue>
             ) : (
               <input
                 type="number"
                 className="w-full border border-slate-300 rounded-md px-3 py-2"
-                value={toDisplayArea(project.region, room.doorArea_m2) ?? ""}
+                value={doorInput}
                 onChange={(e) => {
-                  const raw =
-                    e.target.value === "" ? undefined : Number(e.target.value);
+                  setDoorInput(e.target.value); // ✅ free typing
+                }}
+                onBlur={() => {
+                  const raw = doorInput === "" ? undefined : Number(doorInput);
+
                   onUpdateRoom(room.name, {
                     doorArea_m2: fromDisplayArea(project.region, raw),
                   });
@@ -570,10 +597,9 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             </div>
 
             <div className="text-slate-600">Tube Size</div>
-            <div className="text-right">{formatTubeSizing(
-                    project.region,
-                    ultra.selection.tubeSize,
-                  )}</div>
+            <div className="text-right">
+              {formatTubeSizing(project.region, ultra.selection.tubeSize)}
+            </div>
 
             <div className="text-slate-600">Tubing Length</div>
             <div className="text-right font-semibold">

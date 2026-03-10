@@ -163,6 +163,7 @@ export interface ProjectSummary {
   notes?: string[];
   ultraFinSpacing_mm?: number | "VARIES";
   tubingSpacing_mm?: number | "VARIES";
+  waterTempRange_C: string | undefined
 }
 
 export interface CalcOutput {

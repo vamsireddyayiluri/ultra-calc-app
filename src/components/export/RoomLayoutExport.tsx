@@ -59,8 +59,6 @@ export const RoomLayoutExport = React.forwardRef<HTMLDivElement, Props>(
 
     const dimensionText = `${displayLength} ${lenLabel} × ${displayWidth} ${lenLabel}`;
 
-    console.log("Rendering RoomDetailsExport for room  :", room);
-
     const res = React.useMemo(
       () => calculateRoom(room, project),
       [room, project],
