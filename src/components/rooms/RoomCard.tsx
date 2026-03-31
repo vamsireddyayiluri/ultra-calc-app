@@ -105,6 +105,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
   // 🔹 Build layout + load images asynchronously
   React.useEffect(() => {
     let cancelled = false;
+    console.log("Building layout for room:", room.name)
 
     const build = async () => {
       if (!room.length_m || !room.width_m || !room.joistSpacing) return;
