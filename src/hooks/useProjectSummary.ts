@@ -18,6 +18,7 @@ export function useProjectSummary(
         totalW: 0,
         totalTubing_m: 0,
         totalFins: 0,
+        totalFinHalves: 0,
         totalClips: 0,
         totalLoops: 0,
         avgWaterTemp_C: 0,
@@ -34,6 +35,7 @@ export function useProjectSummary(
 
     let totalTubing_m = 0;
     let totalFins = 0;
+    let totalFinHalves = 0;
     let totalClips = 0;
     let totalLoops = 0;
 
@@ -68,6 +70,7 @@ export function useProjectSummary(
 
       totalTubing_m += ultra.materials.tubing_m;
       totalFins += ultra.materials.fins_pairs;
+      totalFinHalves += ultra.materials.fin_halves;
       totalLoops += ultra.materials.loops;
 
       totalClips +=
@@ -98,26 +101,26 @@ export function useProjectSummary(
       ultraFinSpacingSet.size === 1
         ? [...ultraFinSpacingSet][0]
         : ultraFinSpacingSet.size > 1
-        ? "VARIES"
-        : undefined;
+          ? "VARIES"
+          : undefined;
 
     const tubingSpacing_mm =
       tubingSpacingSet.size === 1
         ? [...tubingSpacingSet][0]
         : tubingSpacingSet.size > 1
-        ? "VARIES"
-        : undefined;
+          ? "VARIES"
+          : undefined;
 
-    // 🔥 Build water temperature range (client requirement)
+    // Required water temperature for the project
     let waterTempRange_C: string | undefined;
 
     if (maxWaterTemp_C > 0) {
       if (project.region === "US" || project.region === "CA_IMPERIAL") {
-        const maxF = Math.round((maxWaterTemp_C * 9) / 5 + 32);
-        waterTempRange_C = `100–${maxF}°F`;
+        const tempF = Math.round((maxWaterTemp_C * 9) / 5 + 32);
+        waterTempRange_C = `${tempF}°F`;
       } else {
-        const maxC = Math.round(maxWaterTemp_C);
-        waterTempRange_C = `38–${maxC}°C`;
+        const tempC = Math.round(maxWaterTemp_C);
+        waterTempRange_C = `${tempC}°C`;
       }
     }
 
@@ -125,6 +128,7 @@ export function useProjectSummary(
       totalW,
       totalTubing_m,
       totalFins,
+      totalFinHalves,
       totalClips,
       totalLoops,
       avgWaterTemp_C,

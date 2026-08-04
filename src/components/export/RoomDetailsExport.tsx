@@ -1,56 +1,36 @@
 // src/components/export/RoomDetailsExport.tsx
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { RoomCard } from "../rooms/RoomCard";
 import { calculateRoom } from "../../utils/physics";
 import { ProjectSettings, RoomInput } from "../../models/projectTypes";
-import { loadImageAsBase64 } from "../../utils/pdfExport";
+import { ReportPage } from "./ReportPage";
 
 interface Props {
   room: RoomInput;
   project: ProjectSettings;
+  logoBase64: string | null;
+  pageNumber: number;
+  totalPages: number;
+  /** Called once this page has mounted (and its ref is attached). RoomCard's exportMode never depends on its own async layout/sidebar state (that block is gated by `!exportMode`), so this page is ready as soon as it mounts. See src/utils/exportReadiness.ts. */
+  onReady?: () => void;
 }
 
 export const RoomDetailsExport = React.forwardRef<HTMLDivElement, Props>(
-  ({ room, project }, ref) => {
-    const [logoBase64, setLogoBase64] = useState<string | null>(null);
-
-    useEffect(() => {
-      const buildLogo = async () => {
-        const base64 = await loadImageAsBase64("/assets/diagrams/logo.PNG");
-
-        setLogoBase64(base64); // ✅ triggers re-render
-      };
-
-      buildLogo();
+  ({ room, project, logoBase64, pageNumber, totalPages, onReady }, ref) => {
+    React.useEffect(() => {
+      onReady?.();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
-    return (
-      <div
-        ref={ref}
-        style={{
-          width: "210mm",
-          minHeight: "297mm",
-          padding: "16mm",
-          background: "#ffffff",
-        }}
-      >
-        {logoBase64 && (
-          <div
-            style={{
-              textAlign: "center",
-            }}
-          >
-            <img
-              src={logoBase64}
-              alt="UltraCalc"
-              style={{
-                maxWidth: "240px", // ✅ control width
-                height: "auto", // ✅ keep aspect ratio
-                objectFit: "contain",
-              }}
-            />
-          </div>
-        )}
 
+    return (
+      <ReportPage
+        ref={ref}
+        logoBase64={logoBase64}
+        projectName={project.name}
+        pageLabel={`${room.name || "Unnamed room"} — Details`}
+        pageNumber={pageNumber}
+        totalPages={totalPages}
+      >
         <RoomCard
           room={room}
           project={project}
@@ -59,7 +39,7 @@ export const RoomDetailsExport = React.forwardRef<HTMLDivElement, Props>(
           onUpdateRoom={() => {}}
           onRemoveRoom={() => {}}
         />
-      </div>
+      </ReportPage>
     );
   },
 );

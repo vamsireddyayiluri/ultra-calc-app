@@ -106,6 +106,7 @@ async function renderPage(
 
 export async function exportPDF(
   headerRef: HTMLDivElement | null,
+  designParamsRef: HTMLDivElement | null,
   detailRefs: HTMLDivElement[],
   layoutRefs: HTMLDivElement[],
   summaryRef?: HTMLDivElement | null,
@@ -122,15 +123,27 @@ export async function exportPDF(
     await renderPage(pdf, el, mode);
     firstPage = false;
   };
-  /* ───────────── SUMMARY ───────────── */
-  if (summaryRef) {
-    await addPage(summaryRef, "text");
-  }
+  /* ───────────── COVER (Project Info + Summary + Notes) ───────────── */
+  // Previously built in the hidden DOM but never actually added to the
+  // PDF — headerRef was accepted as a parameter but no addPage() call
+  // ever referenced it, so the export silently started on room 1.
+  await addPage(headerRef, "text");
+
+  /* ───────────── DESIGN PARAMETERS ───────────── */
+  await addPage(designParamsRef, "text");
 
   /* ───────────── ROOMS ───────────── */
   for (let i = 0; i < detailRefs.length; i++) {
     await addPage(detailRefs[i], "text"); // ✅ details → JPEG
     await addPage(layoutRefs[i], "layout"); // ✅ layout → PNG
+  }
+
+  /* ───────────── SUMMARY ───────────── */
+  // Moved to the end — previously rendered first, ahead of every room
+  // page, contradicting the documented "cover → rooms → summary" report
+  // flow (and its own "final summary page" framing in the hidden DOM).
+  if (summaryRef) {
+    await addPage(summaryRef, "text");
   }
 
   pdf.save("project-export.pdf");

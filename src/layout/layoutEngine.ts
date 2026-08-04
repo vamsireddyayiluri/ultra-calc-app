@@ -17,7 +17,7 @@ export function buildLayout(input: LayoutInput) {
     input.roomLength_m,
     input.roomWidth_m,
     input.joist,
-    input.load
+    input.load,
   );
 
   const connectorFactorByJoist: Record<number, number> = {
@@ -38,8 +38,11 @@ export function buildLayout(input: LayoutInput) {
 
   const centerX = (c: number) => c * block.w + block.w / 2;
 
-  const TOP_Y = -block.h * 0.5;
-  const BOTTOM_Y = rows * block.h - block.h * 0.5;
+  // Move connectors slightly away from the fin blocks
+  const ENDCAP_OFFSET = input.joist === 19 ? block.h * 0.17 : block.h * 0.08; // try 12%, adjust if needed
+
+  const TOP_Y = -block.h * 0.5 - ENDCAP_OFFSET;
+  const BOTTOM_Y = rows * block.h - block.h * 0.5 + ENDCAP_OFFSET;
 
   // ===============================
   // FIN BLOCKS (REAL AREA)
@@ -129,7 +132,7 @@ export function buildLayout(input: LayoutInput) {
         asset: pipeBridgeAsset(
           input.joist,
           prevIsDown ? "TR" : "TL",
-          input.method
+          input.method,
         ),
       });
     }
@@ -159,16 +162,16 @@ export function buildLayout(input: LayoutInput) {
     tiles.push({
       type: "PB",
       x: (cols - 1) * block.w + block.w / 2 - block.w / 2,
-      y: rows * block.h - block.h * 0.5,
+      y: BOTTOM_Y,
       w: block.w,
       h: block.h,
       asset: pipeBridgeAsset(input.joist, "BL", input.method),
     });
-  }else {
+  } else {
     tiles.push({
       type: "PB",
       x: (cols - 1) * block.w + block.w / 2 - block.w / 2,
-      y: rows * block.h - block.h * 0.5,
+      y: BOTTOM_Y,
       w: block.w,
       h: block.h,
       asset: pipeBridgeAsset(input.joist, "BR", input.method),
