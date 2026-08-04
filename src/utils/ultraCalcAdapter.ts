@@ -7,6 +7,13 @@ export function runUltraCalc(
   results: RoomResults,
   project: ProjectSettings
 ) {
+  const heatingSystem = project.heatingSystem ?? "STANDARD";
+  // Heat Pump spacing optimisation will be implemented later after
+  // business confirmation. Current UltraCalc sizing remains unchanged:
+  // the client has not confirmed whether Heat Pump projects should
+  // always use the tightest spacing or keep dynamic spacing while
+  // optimizing for lower water temperature.
+
   const input: UltraCalcInput = {
     heatLoad: {
       unit: "W_M2",
@@ -20,6 +27,7 @@ export function runUltraCalc(
     method: mapInstallMethod(room.installMethod),
     joist: mapJoist(room.joistSpacing?.toString()),
   };
+  void heatingSystem;
   return ultraCalc(input);
 }
 

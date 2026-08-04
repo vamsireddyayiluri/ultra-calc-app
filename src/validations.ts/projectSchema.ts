@@ -3,6 +3,7 @@ import { z } from "zod";
 export const projectSchema = z.object({
   name: z.string().min(1, "Project name is required"),
   region: z.string().min(1, "Region must be selected"),
+  heatingSystem: z.enum(["STANDARD", "HEAT_PUMP"]).optional(),
   address: z.string().min(1, "Address is required, Please enter valid address"),
   standardsMode: z.string().min(1, "Standards mode must be selected"),
   indoorTempC: z.preprocess(

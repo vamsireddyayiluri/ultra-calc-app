@@ -4,6 +4,7 @@ import { ProjectSettings, ProjectSummary } from "../../models/projectTypes";
 import { SummaryRow } from "./SummaryRow";
 import { formatProjectSummary } from "../../utils/formatProjectSummary";
 import { formatSpacing } from "../../utils/formatResults";
+import { getHeatingSystemLabel } from "../../utils/heatingSystem";
 
 interface SummaryCardProps {
   project: ProjectSettings;
@@ -79,6 +80,16 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
           temperatures may be used if additional heat output is required.
         </p>
       )}
+
+      <h3 className="mb-2 mt-6 border-t border-slate-100 pt-4 text-xs font-semibold uppercase tracking-wide text-slate-400">
+        Project Information
+      </h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <SummaryRow
+          label="Heating System"
+          value={getHeatingSystemLabel(project.heatingSystem)}
+        />
+      </div>
 
       <h3 className="mb-2 mt-6 border-t border-slate-100 pt-4 text-xs font-semibold uppercase tracking-wide text-slate-400">
         Materials &amp; Installation

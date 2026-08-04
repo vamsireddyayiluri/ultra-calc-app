@@ -24,6 +24,7 @@ import { getFriendlySaveErrorMessage } from "../utils/friendlyError";
 import { exportPDF, loadImageAsBase64 } from "../utils/pdfExport";
 import { createReadinessGate } from "../utils/exportReadiness";
 import { getDefaultUValues } from "../utils/uDefaults";
+import { DEFAULT_HEATING_SYSTEM } from "../utils/heatingSystem";
 import { RoomDetailsExport } from "../components/export/RoomDetailsExport";
 import { RoomLayoutExport } from "../components/export/RoomLayoutExport";
 import { CoverPage } from "../components/export/CoverPage";
@@ -85,6 +86,7 @@ export default function ProjectPage() {
           contractor: "",
           address: "",
           region: "UK",
+          heatingSystem: DEFAULT_HEATING_SYSTEM,
           standardsMode: "BS_EN_12831",
           insulationPeriod: "y2001_2015",
           indoorTempC: 21,

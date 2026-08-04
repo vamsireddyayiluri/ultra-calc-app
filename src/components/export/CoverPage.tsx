@@ -12,6 +12,7 @@ import { ReportRow, ReportSectionHeading } from "./reportPrimitives";
 import { REGION_OPTIONS } from "../../models/presets";
 import { STANDARDS_OPTIONS } from "../forms/ProjectForm";
 import { formatProjectSummary } from "../../utils/formatProjectSummary";
+import { getHeatingSystemLabel } from "../../utils/heatingSystem";
 
 interface Props {
   project: ProjectSettings & { rooms: RoomInput[] };
@@ -100,6 +101,10 @@ export const CoverPage = React.forwardRef<HTMLDivElement, Props>(
             <ReportRow label="Report Title" value="Heat Loss & Radiant Floor Design Report" />
             <ReportRow label="Address" value={project.address} />
             <ReportRow label="Contractor" value={project.contractor} />
+            <ReportRow
+              label="Heating System"
+              value={getHeatingSystemLabel(project.heatingSystem)}
+            />
             <ReportRow label="Region" value={regionLabel} />
             <ReportRow label="Standards" value={standardsLabel} />
             <ReportRow label="Project Status" value={statusLabel} />

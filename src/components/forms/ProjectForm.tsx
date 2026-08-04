@@ -9,6 +9,7 @@ import type {
   InsulationPeriodKey,
   GlazingType,
   MaterialUValues,
+  HeatingSystem,
 } from "../../models/projectTypes";
 import { REGION_DEFAULTS } from "../../data/regionDefaults";
 import { getDefaultUValues } from "../../utils/uDefaults";
@@ -26,6 +27,11 @@ import {
 import { ProjectValidationResult } from "../../validations.ts/projectValidator";
 import { FieldValidationMessage } from "../validation/FieldValidationMessage";
 import { REGION_OPTIONS } from "../../models/presets";
+import {
+  getHeatingSystem,
+  getHeatingSystemLabel,
+  HEATING_SYSTEM_LABELS,
+} from "../../utils/heatingSystem";
 
 interface ProjectFormProps {
   project: ProjectSettings;
@@ -49,6 +55,23 @@ const ADVANCED_FIELDS = new Set([
   "mechVent_m3_per_h",
   "infiltrationACH",
 ]);
+
+const HEATING_SYSTEM_OPTIONS: {
+  key: HeatingSystem;
+  title: string;
+  image: string;
+}[] = [
+  {
+    key: "STANDARD",
+    title: HEATING_SYSTEM_LABELS.STANDARD,
+    image: "/assets/diagrams/boiler.PNG",
+  },
+  {
+    key: "HEAT_PUMP",
+    title: HEATING_SYSTEM_LABELS.HEAT_PUMP,
+    image: "/assets/diagrams/heat_pump.PNG",
+  },
+];
 
 export const STANDARDS_OPTIONS: { key: StandardsMode; label: string }[] = [
   { key: "BS_EN_12831", label: "BS EN 12831" },
@@ -166,6 +189,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
 
   const regionLabel = project.region ? project.region : "Canada";
   const standardsLabel = project.standardsMode ?? "BS EN 12831";
+  const heatingSystem = getHeatingSystem(project);
 
   const uiUnits = getUIUnits(project.region);
 
@@ -236,6 +260,57 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
           Project Info
         </h3>
       )}
+      <Field label="Heating System" required>
+        {exportMode ? (
+          <DisplayValue>{getHeatingSystemLabel(project.heatingSystem)}</DisplayValue>
+        ) : (
+          <>
+            <div
+              className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+              role="radiogroup"
+              aria-label="Heating system"
+            >
+              {HEATING_SYSTEM_OPTIONS.map((option) => {
+                const selected = heatingSystem === option.key;
+                return (
+                  <button
+                    key={option.key}
+                    id={fieldId(`heatingSystem-${option.key}`)}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => onUpdate({ heatingSystem: option.key })}
+                    className={`flex min-h-[132px] items-center gap-4 rounded-lg border p-4 text-left transition ${
+                      selected
+                        ? "border-blue-700 bg-blue-50 ring-2 ring-blue-100"
+                        : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    <img
+                      src={option.image}
+                      alt=""
+                      aria-hidden="true"
+                      className="h-20 w-24 shrink-0 rounded-md object-contain"
+                    />
+                    <span
+                      className={`text-sm font-semibold ${
+                        selected ? "text-blue-900" : "text-slate-700"
+                      }`}
+                    >
+                      {option.title}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-2 text-xs text-slate-500">
+              Heat Pump spacing optimisation will be implemented later after
+              business confirmation. Current spacing and material calculations
+              are unchanged.
+            </div>
+          </>
+        )}
+      </Field>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Field label="Project Name" required>
           {exportMode ? (
