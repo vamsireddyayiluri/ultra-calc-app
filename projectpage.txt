@@ -22,13 +22,14 @@ import { CircularProgress } from "@mui/material";
 import { validateProject } from "../validations.ts/projectValidator";
 import { getFriendlySaveErrorMessage } from "../utils/friendlyError";
 import { exportPDF, loadImageAsBase64 } from "../utils/pdfExport";
-import { createReadinessGate } from "../utils/exportReadiness";
 import { getDefaultUValues } from "../utils/uDefaults";
 import { RoomDetailsExport } from "../components/export/RoomDetailsExport";
 import { RoomLayoutExport } from "../components/export/RoomLayoutExport";
 import { CoverPage } from "../components/export/CoverPage";
 import { DesignParametersPage } from "../components/export/DesignParametersPage";
 import { MaterialsSummaryPage } from "../components/export/MaterialsSummaryPage";
+import { ProjectForm } from "../components/forms/ProjectForm";
+import { SummaryCard } from "../components/summary/SummaryCard";
 
 export default function ProjectPage() {
   const { id } = useParams<{ id?: string }>();
@@ -46,17 +47,6 @@ export default function ProjectPage() {
   const summaryRef = useRef<HTMLDivElement | null>(null);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
-  // Deterministic, timer-free "has every hidden export page actually
-  // finished rendering" gate — see src/utils/exportReadiness.ts. Lazily
-  // created once (not on every render) via the standard useRef-null-check
-  // pattern, since it holds mutable readiness state across the page's
-  // whole lifetime, not just one render.
-  const readinessGateRef = useRef<ReturnType<
-    typeof createReadinessGate
-  > | null>(null);
-  if (!readinessGateRef.current) {
-    readinessGateRef.current = createReadinessGate();
-  }
   const [activeTab, setActiveTab] = useState<"details" | "rooms" | "summary">(
     "details",
   );
@@ -134,34 +124,12 @@ export default function ProjectPage() {
   };
 
   const handleExportPDF = async () => {
-    if (!project) return;
-
     try {
-      persistDraftIfEditable(project); // best-effort, same as before — not awaited
-
+      handleSaveProject(false);
       setIsExporting(true);
-
-      // Wait for every hidden export page to report itself ready —
-      // mounted, ref attached, and (for the async Room Layout pages) its
-      // SVG tiles inlined and sidebar images loaded — before starting the
-      // actual capture. This is what makes the export correct whether the
-      // user just opened the project (cold cache) or has already expanded
-      // every room (warm cache): either way, exportPDF() only ever sees
-      // fully-rendered pages, never a page that's still mid-load.
-      const expectedReadyIds = [
-        "cover",
-        "design-params",
-        ...project.rooms.flatMap((room) => [
-          `detail-${room.id}`,
-          `layout-${room.id}`,
-        ]),
-        "materials-summary",
-      ];
-      await readinessGateRef.current!.waitFor(expectedReadyIds);
 
       await exportPDF(
         headerRef.current,
-        designParamsRef.current,
         detailRefs.current,
         layoutRefs.current,
         summaryRef.current,
@@ -176,7 +144,6 @@ export default function ProjectPage() {
       setIsExporting(false);
     }
   };
-
   // ➕ Add Room
   const addRoom = () => {
     if (!project) return;
@@ -366,16 +333,27 @@ export default function ProjectPage() {
                   ← Back
                 </button>
 
-                {/* Add Room */}
-                {activeTab === "rooms" && (
-                  <button
-                    onClick={addRoom}
-                    className="px-3 py-2 text-sm font-semibold rounded-md bg-cyan-500 text-white hover:bg-cyan-600 transition shadow-sm"
-                  >
-                    + Add Room
-                  </button>
-                )}
-                              </div>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold text-slate-800">
+                    {project.name || "Untitled Project"}
+                  </div>
+                  {statusPill && (
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <span
+                        aria-hidden="true"
+                        className={`inline-block h-1.5 w-1.5 rounded-full ${statusPill.dot}`}
+                      />
+                      <span className={statusPill.text}>
+                        {statusPill.label}
+                      </span>
+                      <span className="text-slate-400">
+                        · {project.rooms.length}{" "}
+                        {project.rooms.length === 1 ? "room" : "rooms"}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
 
               {/* RIGHT: Actions — Save is the one unambiguous primary
                   action (filled). Export is secondary (outlined). Delete
@@ -458,82 +436,98 @@ export default function ProjectPage() {
         )}
       </AppLayout>
       {/* Hidden Export View for PDF */}
-      {/* Kept fully opaque and normally laid out (html2canvas needs a real,
-          painted element — see AGENTS.md's PDF Generator note), tucked
-          behind the app's own opaque UI via z-index rather than shoved to
-          an extreme off-viewport offset. Deliberately `position: absolute`,
-          not `fixed`: a `fixed` element is anchored to the viewport and is
-          excluded from the document's scrollable content area, so when
-          this tree is taller than the current viewport (routine for a
-          multi-room project — several stacked A4-equivalent pages), the
-          part beyond the viewport's height may not be fully laid out/
-          capturable. `absolute` still expands the page's normal scrollable
-          height to fit its full content regardless of viewport size, so it
-          isn't sensitive to how large the browser window/viewport happens
-          to be (small on a phone, or shrunk by an open DevTools panel). */}
       <div style={{ position: "absolute", left: "-99999px", top: 0 }}>
-        {/* ───────────── PAGE 1 — Cover + Project Summary + Notes ───────────── */}
-        <CoverPage
+        {/* ───────────── HEADER PAGE ───────────── */}
+        <div
           ref={headerRef}
-          project={project}
-          summary={summary}
-          logoBase64={logoBase64}
-          pageNumber={1}
-          totalPages={totalPages}
-          onReady={() => readinessGateRef.current!.markReady("cover")}
-        />
+          style={{
+            width: "210mm",
+            height: "297mm",
+            padding: "12mm",
+            boxSizing: "border-box",
+            background: "#fff",
+          }}
+        >
+          <div style={{ textAlign: "center", marginBottom: "8mm" }}>
+            <img src="/logo.png" height={40} />
+          </div>
 
-        {/* ───────────── PAGE 2 — Design Parameters ───────────── */}
-        <DesignParametersPage
-          ref={designParamsRef}
-          project={project}
-          logoBase64={logoBase64}
-          pageNumber={2}
-          totalPages={totalPages}
-          onReady={() => readinessGateRef.current!.markReady("design-params")}
-        />
+          <div style={{ fontSize: 12 }}>
+            <div>
+              <strong>Project:</strong> {project.name}
+            </div>
+            <div>
+              <strong>Region:</strong> {project.region}
+            </div>
+            {project.address && (
+              <div>
+                <strong>Address:</strong> {project.address}
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* ───────────── PER ROOM ───────────── */}
         {project.rooms.map((room, i) => (
           <React.Fragment key={room.id}>
-            <RoomDetailsExport
+            <div
               ref={(el) => (detailRefs.current[i] = el!)}
-              room={room}
-              project={project}
-              logoBase64={logoBase64}
-              pageNumber={3 + i * 2}
-              totalPages={totalPages}
-              onReady={() =>
-                readinessGateRef.current!.markReady(`detail-${room.id}`)
-              }
-            />
+              style={{
+                width: "210mm",
+                height: "297mm",
+                background: "#fff",
+              }}
+            >
+              <RoomDetailsExport room={room} project={project} />
+            </div>
 
-            <RoomLayoutExport
+            <div
               ref={(el) => (layoutRefs.current[i] = el!)}
-              room={room}
-              project={project}
-              logoBase64={logoBase64}
-              pageNumber={4 + i * 2}
-              totalPages={totalPages}
-              onReady={() =>
-                readinessGateRef.current!.markReady(`layout-${room.id}`)
-              }
-            />
+              style={{
+                width: "210mm",
+                height: "297mm",
+                background: "#fff",
+              }}
+            >
+              <RoomLayoutExport room={room} project={project} />
+            </div>
           </React.Fragment>
         ))}
 
-        {/* ───────────── MATERIALS SUMMARY ───────────── */}
-        <MaterialsSummaryPage
-          ref={summaryRef}
-          project={project}
-          summary={summary}
-          logoBase64={logoBase64}
-          pageNumber={totalPages}
-          totalPages={totalPages}
-          onReady={() =>
-            readinessGateRef.current!.markReady("materials-summary")
-          }
-        />
+        {/* ───────────── SUMMARY ───────────── */}
+        {summary && (
+          <div
+            ref={summaryRef}
+            style={{
+              width: "210mm",
+              height: "297mm",
+              padding: "12mm",
+              boxSizing: "border-box",
+              background: "#fff",
+            }}
+          >
+            {logoBase64 && (
+              <div
+                style={{
+                  textAlign: "center",
+                }}
+              >
+                <img
+                  src={logoBase64}
+                  alt="UltraCalc"
+                  style={{
+                    maxWidth: "240px",
+                    height: "auto",
+                    objectFit: "contain",
+                  }}
+                />
+              </div>
+            )}
+            <ProjectForm project={project} onUpdate={() => {}} exportMode />
+            <div style={{ height: "16px" }}></div>
+            <SummaryCard project={project} summary={summary} />
+          </div>
+        )}
       </div>
     </>
   );

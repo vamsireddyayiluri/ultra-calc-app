@@ -1,16 +1,11 @@
 import { INSTALL_METHOD_OPTIONS } from "../models/presets";
 import { Region, ProjectSummary } from "../models/projectTypes";
-import {
-  W_to_Btuh,
-  Wpm2_to_Btuhft2,
-} from "../utils/conversions";
+import { W_to_Btuh, Wpm2_to_Btuhft2 } from "../utils/conversions";
 import { InstallMethod } from "./ultraCalcLocked";
 
-export function formatProjectSummary(
-  region: Region,
-  summary: ProjectSummary
-) {
-  const imperial = region === "US" || region === "CA_IMPERIAL" || region === "CA_METRIC";
+export function formatProjectSummary(region: Region, summary: ProjectSummary) {
+  const imperial =
+    region === "US" || region === "CA_IMPERIAL" || region === "CA_METRIC";
 
   return {
     totalHeat: imperial
@@ -24,12 +19,11 @@ export function formatProjectSummary(
     tubing: imperial
       ? `${Math.round(summary.totalTubing_m * 3.28084)} ft`
       : `${Math.round(summary.totalTubing_m)} m`,
+    fins: `${summary.totalFins} pairs (${summary.totalFinHalves} halves)`,
 
-    fins: summary.totalFins.toLocaleString(),
     clips: summary.totalClips.toLocaleString(),
-    loops: summary.totalLoops.toLocaleString(),
+    loops: (summary.totalLoops ?? 0).toLocaleString(),
   };
 }
 export const getInstallMethodLabel = (value?: InstallMethod) =>
   INSTALL_METHOD_OPTIONS.find((o) => o.value === value)?.label ?? "-";
-

@@ -5,10 +5,12 @@ export function SectionCard({
   title,
   children,
   exportMode = false,
+  className = "",
 }: {
   title: string;
   children: React.ReactNode;
   exportMode?: boolean;
+  className?: string;
 }) {
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
 
@@ -23,7 +25,7 @@ export function SectionCard({
   }, []);
   return (
     <div
-      className={`bg-white border border-slate-200 rounded-2xl  shadow-md hover:shadow-lg transition-shadow ${exportMode ? "py-1 px-5 mb-2" : "p-5"}`}
+      className={`bg-white border border-slate-200 rounded-2xl  shadow-md hover:shadow-lg transition-shadow ${exportMode ? "py-1 px-5 mb-2" : "p-5"} ${className}`}
     >
       <div className={`flex items-center justify-between ${exportMode ? "mb-2" : "mb-4"}`}>
         <h3 className="font-semibold text-slate-800 text-lg">{title}</h3>

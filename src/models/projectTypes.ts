@@ -34,8 +34,22 @@ export interface MaterialUValues {
   floor: number;
 }
 
+/**
+ * Project lifecycle. Missing/undefined is treated as "draft" everywhere
+ * this is read (see docs/PROJECT_WORKFLOW.md) — this keeps pre-existing
+ * saved projects (which predate this field and were never validated
+ * against the strict schema) safely editable/autosaving rather than
+ * silently locking them out of further automatic saves.
+ */
+export type ProjectStatus = "draft" | "published";
+
 export interface ProjectSettings {
   id?: string;
+  status?: ProjectStatus;
+  /** Epoch ms, set once at creation and never overwritten. Missing on projects created before this field existed. */
+  createdAt?: number;
+  /** Epoch ms, stamped on every successful draft/publish save. Missing on projects never saved through that path. */
+  updatedAt?: number;
   name: string;
   contractor: string;
   address: string;
@@ -141,6 +155,9 @@ export interface RoomResults {
 }
 
 export interface ProjectSummary {
+  fins_pairs?: any;
+  fin_halves?: any;
+  totalFinHalves: any;
   totalW: number;
   totalTubing_m: number;
 

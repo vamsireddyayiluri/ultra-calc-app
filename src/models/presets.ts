@@ -4,7 +4,18 @@ import {
   InsulationPeriodKey,
   JoistSpacingOption,
   PeriodPreset,
+  Region,
 } from "./projectTypes";
+
+// Display labels for each Region — single source of truth, shared by
+// ProjectForm's region <select> and the dashboard's region filter/labels.
+export const REGION_OPTIONS: { key: Region; label: string }[] = [
+  { key: "UK", label: "United Kingdom" },
+  { key: "EU", label: "European Union" },
+  { key: "US", label: "United States" },
+  { key: "CA_METRIC", label: "Canada (Metric U-values)" },
+  { key: "CA_IMPERIAL", label: "Canada (Imperial U-values)" },
+];
 
 // Glazing window U-values (W/m²K)
 export const GLAZING_WINDOW_U: Record<GlazingType, number> = {

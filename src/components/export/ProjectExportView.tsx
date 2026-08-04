@@ -17,6 +17,11 @@ interface Props {
 
 export const ProjectExportView = React.forwardRef<HTMLDivElement, Props>(
   ({ project, rooms, summary }, ref) => {
+    // Kept in sync with the ReportPage/CoverPage props this file's
+    // children now require — this component itself remains unused/legacy
+    // (see AGENTS.md §5), not wired into the actual export flow.
+    const totalPages = 2 + rooms.length * 2;
+
     return (
       <div
         ref={ref}
@@ -44,18 +49,24 @@ export const ProjectExportView = React.forwardRef<HTMLDivElement, Props>(
         </div>
 
         {/* ROOMS */}
-        {rooms.map((room) => (
+        {rooms.map((room, i) => (
           <React.Fragment key={room.id}>
             {/* PAGE 1 — ROOM DETAILS */}
             <RoomDetailsExport
               room={room}
               project={project}
+              logoBase64={null}
+              pageNumber={2 + i * 2}
+              totalPages={totalPages}
             />
 
             {/* PAGE 2 — ROOM LAYOUT */}
             <RoomLayoutExport
               room={room}
               project={project}
+              logoBase64={null}
+              pageNumber={3 + i * 2}
+              totalPages={totalPages}
             />
           </React.Fragment>
         ))}

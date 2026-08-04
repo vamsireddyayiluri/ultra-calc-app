@@ -23,6 +23,35 @@ export type RichProject = ProjectSettings & {
 };
 
 /**
+ * Recursively replaces `undefined` with `null` (objects and arrays).
+ * Firestore's setDoc()/addDoc() throw on any `undefined` field value —
+ * this app's display/normalize layer (utils/display.ts's fromDisplay*
+ * functions) legitimately produces `undefined` for a cleared input, since
+ * that's exactly what the validator's isBlank() check needs to see in
+ * memory to classify a field as "incomplete" rather than "invalid". This
+ * sanitization must stay right here, immediately before the write — never
+ * upstream in updateRoom/updateProject/React state — or the validator
+ * would lose the ability to tell "cleared" apart from "never touched".
+ * Converting to `null` (not deleting the key) also matches this app's
+ * `merge: true` semantics: an omitted key leaves Firestore's existing
+ * value untouched, but an explicit `null` correctly overwrites it to
+ * reflect the user having cleared the field.
+ */
+function sanitizeForFirestore<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((v) => (v === undefined ? null : sanitizeForFirestore(v))) as unknown as T;
+  }
+  if (value !== null && typeof value === "object" && !(value instanceof Date)) {
+    const out: Record<string, unknown> = {};
+    for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
+      out[key] = v === undefined ? null : sanitizeForFirestore(v);
+    }
+    return out as T;
+  }
+  return value;
+}
+
+/**
  * Save or update a project and associate it with the current user
  */
 export async function saveProjectTodb(project: any, showMessage: any) {
@@ -33,19 +62,49 @@ export async function saveProjectTodb(project: any, showMessage: any) {
     if (project.id) {
       // Update existing project
       const docRef = doc(db, "projects", project.id);
-      await setDoc(docRef, project, { merge: true });
+      await setDoc(docRef, sanitizeForFirestore(project), { merge: true });
       return project.id;
     } else {
       // Add new project
       project.id = uid();
       const colRef = collection(db, "projects");
-      const docRef = await addDoc(colRef, project);
+      const docRef = await addDoc(colRef, sanitizeForFirestore(project));
       return docRef.id;
     }
   } catch (error) {
     console.error("Error saving project:", error);
     throw error;
   }
+}
+
+/**
+ * Persist a project as a Draft — always succeeds regardless of
+ * completeness/validity (drafts may be incomplete or contain invalid
+ * fields; they must always be saveable so in-progress work is never
+ * lost). Does not validate — callers decide when this is appropriate to
+ * call; this function only sets the lifecycle field and delegates to the
+ * existing, unmodified saveProjectTodb() write path.
+ */
+export async function saveDraftToDb(project: RichProject): Promise<string> {
+  return saveProjectTodb(
+    { ...project, status: "draft", updatedAt: Date.now() },
+    undefined,
+  );
+}
+
+/**
+ * Persist a project as Published. Callers are responsible for having
+ * already run strict validation (validateProject().complete) before
+ * calling this — this function deliberately does not import or run the
+ * validator itself, keeping this file a pure Firestore persistence layer
+ * with no business-rule knowledge (see AGENTS.md's separation between
+ * the Validation and Firestore/persistence layers).
+ */
+export async function publishProjectToDb(project: RichProject): Promise<string> {
+  return saveProjectTodb(
+    { ...project, status: "published", updatedAt: Date.now() },
+    undefined,
+  );
 }
 
 /**

@@ -1,6 +1,6 @@
 // src/components/export/RoomLayoutExport.tsx
-import React, { useEffect, useState } from "react";
-import { FloorLayoutSvg } from "../../layout/FloorLayoutSvg";
+import React from "react";
+import { FloorLayoutSvg, SCALE } from "../../layout/FloorLayoutSvg";
 import { RightSidebar } from "../../layout/RightSidebar";
 import { buildLayout } from "../../layout/layoutEngine";
 import { runUltraCalc } from "../../utils/ultraCalcAdapter";
@@ -18,10 +18,16 @@ import {
 } from "../../utils/pdfExport";
 import { toDisplayLength } from "../../utils/display";
 import { getUIUnits } from "../../helpers/updateUiLabels";
+import { ReportPage } from "./ReportPage";
 
 interface Props {
   room: RoomInput;
   project: ProjectSettings;
+  logoBase64: string | null;
+  pageNumber: number;
+  totalPages: number;
+  /** Called once this page's async asset loading (layout tiles + sidebar images) has settled — whether it produced a usable diagram or not (e.g. an incomplete room). Used by the export-readiness gate in ProjectPage.tsx; omitted in any other usage (e.g. the unused ProjectExportView.tsx). */
+  onReady?: () => void;
 }
 interface SidebarImages {
   profiles: string[];
@@ -33,29 +39,36 @@ interface SidebarImages {
 }
 
 export const RoomLayoutExport = React.forwardRef<HTMLDivElement, Props>(
-  ({ room, project }, ref) => {
+  ({ room, project, logoBase64, pageNumber, totalPages, onReady }, ref) => {
     const [layout, setLayout] = React.useState<ReturnType<
       typeof buildLayout
     > | null>(null);
 
     const [sidebarImages, setSidebarImages] =
       React.useState<SidebarImages | null>(null);
-    /* ---------------- CALC ---------------- */
-    const [logoBase64, setLogoBase64] = useState<string | null>(null);
 
-    useEffect(() => {
-      const buildLogo = async () => {
-        const base64 = await loadImageAsBase64("/assets/diagrams/logo.PNG");
+    // Readiness tracking for the export gate — deliberately independent
+    // of whether `layout`/`sidebarImages` end up non-null. A room with
+    // incomplete dimensions never produces a layout (see the early
+    // return in the effect below); without this, the export gate would
+    // wait forever for a signal that would never come. "Settled" means
+    // "this effect has finished its attempt, successful or not."
+    const layoutSettledRef = React.useRef(false);
+    const sidebarSettledRef = React.useRef(false);
+    const onReadyRef = React.useRef(onReady);
+    onReadyRef.current = onReady;
 
-        setLogoBase64(base64); // ✅ triggers re-render
-      };
-
-      buildLogo();
+    const maybeSignalReady = React.useCallback(() => {
+      if (layoutSettledRef.current && sidebarSettledRef.current) {
+        onReadyRef.current?.();
+      }
     }, []);
+
+    /* ---------------- CALC ---------------- */
     const displayLength = toDisplayLength(project.region, room.length_m);
     const displayWidth = toDisplayLength(project.region, room.width_m);
     const uiUnits = getUIUnits(project.region);
-      const lenLabel = uiUnits.length;
+    const lenLabel = uiUnits.length;
 
     const dimensionText = `${displayLength} ${lenLabel} × ${displayWidth} ${lenLabel}`;
 
@@ -74,7 +87,17 @@ export const RoomLayoutExport = React.forwardRef<HTMLDivElement, Props>(
       let cancelled = false;
 
       const build = async () => {
-        if (!room.length_m || !room.width_m || !room.joistSpacing) return;
+        if (!room.length_m || !room.width_m || !room.joistSpacing) {
+          // Incomplete room — no layout will ever be produced for these
+          // inputs. Still counts as "settled" so the export gate doesn't
+          // wait forever; the page will render null and pdfExport.ts's
+          // addPage() already skips a null ref.
+          if (!cancelled) {
+            layoutSettledRef.current = true;
+            maybeSignalReady();
+          }
+          return;
+        }
 
         const newLayout = buildLayout({
           roomLength_m: room.length_m,
@@ -84,7 +107,18 @@ export const RoomLayoutExport = React.forwardRef<HTMLDivElement, Props>(
           method: ultra.selection.method,
         });
 
-        // 🔹 INLINE SVGs FOR PDF
+        // 🔹 INLINE + FLATTEN EACH TILE TO PNG FOR PDF
+        // html2canvas serializes the outer <svg> (with every tile's
+        // <image> child) into a single composite SVG-as-image resource
+        // when rasterizing this "layout" page. Nested SVG-in-SVG-as-image
+        // content isn't reliably painted through that path — verified
+        // directly: the same tile SVG painted 100% of its pixels drawn
+        // alone, but only ~6% once nested inside an outer svg-as-image.
+        // Flattening each tile to a real PNG raster (via the same
+        // svgBase64ToPng() RightSidebar's images already use) removes the
+        // nesting entirely — a PNG data URI has no further nested
+        // resources to resolve. Run in parallel since each tile's
+        // inline+rasterize is independent of every other tile's.
         for (const tile of newLayout.tiles) {
           if (!tile.asset) continue;
           tile.assetBase64 = await inlineNestedSvgImages(tile.asset);
@@ -92,6 +126,8 @@ export const RoomLayoutExport = React.forwardRef<HTMLDivElement, Props>(
 
         if (!cancelled) {
           setLayout(newLayout);
+          layoutSettledRef.current = true;
+          maybeSignalReady();
         }
       };
 
@@ -99,6 +135,10 @@ export const RoomLayoutExport = React.forwardRef<HTMLDivElement, Props>(
       return () => {
         cancelled = true;
       };
+      // onReady/maybeSignalReady are intentionally omitted — maybeSignalReady
+      // is a stable identity (see useCallback with [] deps) that always reads
+      // the latest onReady via onReadyRef, so it doesn't need to be a dependency.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
       room.length_m,
       room.width_m,
@@ -150,6 +190,8 @@ export const RoomLayoutExport = React.forwardRef<HTMLDivElement, Props>(
             isOpenWeb: sidebar.profiles.length === 2,
             installMethod: room.installMethod,
           });
+          sidebarSettledRef.current = true;
+          maybeSignalReady();
         }
       };
 
@@ -157,6 +199,7 @@ export const RoomLayoutExport = React.forwardRef<HTMLDivElement, Props>(
       return () => {
         cancelled = true;
       };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [room.installMethod, room.joistSpacing]);
 
     /* ---------------- WAIT UNTIL READY ---------------- */
@@ -164,38 +207,14 @@ export const RoomLayoutExport = React.forwardRef<HTMLDivElement, Props>(
 
     /* ---------------- RENDER ---------------- */
     return (
-      <div
+      <ReportPage
         ref={ref}
-        style={{
-          width: "210mm",
-          height: "297mm",
-          padding: "10mm 12mm 12mm 12mm",
-          background: "#fff",
-          boxSizing: "border-box",
-          position: "relative", // IMPORTANT
-          display: "flex",
-          flexDirection: "column", // stack vertically
-        }}
+        logoBase64={logoBase64}
+        projectName={project.name}
+        pageLabel={`${room.name || "Unnamed room"} — Layout`}
+        pageNumber={pageNumber}
+        totalPages={totalPages}
       >
-        {logoBase64 && (
-          <div
-            style={{
-              textAlign: "center",
-              marginLeft: "24px",
-            }}
-          >
-            <img
-              src={logoBase64}
-              alt="UltraCalc"
-              style={{
-                maxWidth: "240px",
-                height: "auto",
-                objectFit: "contain",
-              }}
-            />
-          </div>
-        )}
-
         {/* MAIN CONTENT */}
         <div
           style={{
@@ -218,11 +237,51 @@ export const RoomLayoutExport = React.forwardRef<HTMLDivElement, Props>(
           >
             {room.installMethod !== "INSLAB" ? (
               <div style={{ display: "flex", width: "100%", height: "100%" }}>
-                <div style={{ flex: 1 }}>
+                <div
+                  style={{
+                    flex: 1,
+                    position: "relative",
+                    paddingLeft: "34px",
+                    paddingBottom: "32px",
+                  }}
+                >
+                  {/* Length */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      top: "50%",
+                      transform: "translateY(-50%) rotate(-90deg)",
+                      transformOrigin: "left center",
+                      fontSize: "16px",
+                      fontWeight: 600,
+                      color: "#475569",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    ← Length →
+                  </div>
+
                   <FloorLayoutSvg
                     layout={layout}
                     installMethod={room.installMethod}
                   />
+
+                  {/* Width */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      bottom: 0,
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      fontSize: "16px",
+                      fontWeight: 600,
+                      color: "#475569",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    ← Width →
+                  </div>
                 </div>
 
                 <RightSidebar images={sidebarImages} />
@@ -239,7 +298,7 @@ export const RoomLayoutExport = React.forwardRef<HTMLDivElement, Props>(
             </div>
           </div>
         </div>
-      </div>
+      </ReportPage>
     );
   },
 );

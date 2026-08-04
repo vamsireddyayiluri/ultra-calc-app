@@ -23,23 +23,34 @@ import {
   toDisplayUValue,
   toDisplayVentilation,
 } from "../../utils/display";
+import { ProjectValidationResult } from "../../validations.ts/projectValidator";
+import { FieldValidationMessage } from "../validation/FieldValidationMessage";
+import { REGION_OPTIONS } from "../../models/presets";
 
 interface ProjectFormProps {
   project: ProjectSettings;
   onUpdate: (patch: Partial<ProjectSettings>) => void;
   appliedDefaults?: Partial<Record<string, any>>;
   exportMode?: boolean;
+  /** Optional — omitted in export/PDF rendering, where inline validation UI never appears. */
+  validation?: ProjectValidationResult;
+  /** External "jump to this field" request — e.g. from ValidationSummary via ProjectEditor. The nonce guarantees the effect re-fires even if the same field is requested twice in a row. */
+  focusFieldRequest?: { field: string; nonce: number } | null;
 }
 
-const REGION_OPTIONS: { key: Region; label: string }[] = [
-  { key: "UK", label: "United Kingdom" },
-  { key: "EU", label: "European Union" },
-  { key: "US", label: "United States" },
-  { key: "CA_METRIC", label: "Canada (Metric U-values)" },
-  { key: "CA_IMPERIAL", label: "Canada (Imperial U-values)" },
-];
+// Fields that only render once "Advanced Defaults" is expanded — navigating
+// to one of these has to open that section first, same idea as RoomCard
+// having to expand a collapsed room before it can scroll to a field in it.
+const ADVANCED_FIELDS = new Set([
+  "standardsMode",
+  "safetyFactorPct",
+  "heatUpFactorPct",
+  "psiAllowance_W_per_K",
+  "mechVent_m3_per_h",
+  "infiltrationACH",
+]);
 
-const STANDARDS_OPTIONS: { key: StandardsMode; label: string }[] = [
+export const STANDARDS_OPTIONS: { key: StandardsMode; label: string }[] = [
   { key: "BS_EN_12831", label: "BS EN 12831" },
   { key: "ASHRAE", label: "ASHRAE" },
   { key: "EN_ISO_13790", label: "EN / ISO 13790" },
@@ -51,9 +62,107 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
   onUpdate,
   appliedDefaults,
   exportMode = false,
+  validation,
+  focusFieldRequest,
 }) => {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Which fields the user has left (blurred) at least once — inline
+  // validation messages only ever appear for touched fields, never while
+  // the user is still typing. `validation` itself is always freshly
+  // computed by the caller (ProjectEditor); this state only controls
+  // *display* timing, not the underlying validation result.
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const markTouched = (field: string) =>
+    setTouched((t) => (t[field] ? t : { ...t, [field]: true }));
+  const fieldId = (field: string) => `project-${field}`;
+
+  const fieldState = (
+    field: string,
+  ): { status: "invalid" | "incomplete" | "warning"; message: string } | undefined => {
+    if (!touched[field] || !validation) return undefined;
+    const fv = validation.projectFields[field];
+    if (fv && fv.status !== "valid") {
+      return { status: fv.status, message: fv.message ?? "This field needs attention." };
+    }
+    const warning = validation.projectWarnings[field];
+    if (warning) return { status: "warning", message: warning };
+    return undefined;
+  };
+
+  const inputClass = (field: string) => {
+    const base = "w-full border rounded-md px-3 py-2";
+    const fs = fieldState(field);
+    if (!fs) return `${base} border-slate-300`;
+    if (fs.status === "invalid") return `${base} border-red-400 bg-red-50`;
+    if (fs.status === "incomplete") return `${base} border-amber-400 bg-amber-50`;
+    return `${base} border-sky-300 bg-sky-50`;
+  };
+
+  const fieldA11yProps = (field: string) => {
+    const fs = fieldState(field);
+    if (!fs) return {};
+    return {
+      "aria-invalid": fs.status === "invalid" ? true : undefined,
+      "aria-describedby": `${fieldId(field)}-msg`,
+    };
+  };
+
+  const renderFieldMessage = (field: string) => {
+    const fs = fieldState(field);
+    if (!fs) return null;
+    return (
+      <FieldValidationMessage
+        id={`${fieldId(field)}-msg`}
+        status={fs.status}
+        message={fs.message}
+      />
+    );
+  };
+
+  const focusField = React.useCallback((field: string) => {
+    const el = document.getElementById(fieldId(field));
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    (el as HTMLElement).focus({ preventScroll: true });
+  }, []);
+
+  // Waiting for "Advanced Defaults" to open before we can scroll to a
+  // field that only renders once that section is expanded.
+  const [pendingFocusField, setPendingFocusField] = useState<string | null>(
+    null,
+  );
+
+  const goToField = React.useCallback(
+    (field: string) => {
+      markTouched(field);
+      if (ADVANCED_FIELDS.has(field) && !advancedOpen) {
+        setPendingFocusField(field);
+        setAdvancedOpen(true);
+      } else {
+        focusField(field);
+      }
+    },
+    [advancedOpen, focusField],
+  );
+
+  React.useEffect(() => {
+    if (advancedOpen && pendingFocusField) {
+      focusField(pendingFocusField);
+      setPendingFocusField(null);
+    }
+  }, [advancedOpen, pendingFocusField, focusField]);
+
+  // External "jump to this field" request, e.g. from ValidationSummary.
+  React.useEffect(() => {
+    if (focusFieldRequest) {
+      goToField(focusFieldRequest.field);
+    }
+    // Only re-run when a *new* request comes in (nonce changes) — not on
+    // every re-render of goToField, which changes identity with advancedOpen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusFieldRequest?.field, focusFieldRequest?.nonce]);
 
   const regionLabel = project.region ? project.region : "Canada";
   const standardsLabel = project.standardsMode ?? "BS EN 12831";
@@ -118,16 +227,31 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
 
   return (
     <SectionCard title="Project">
+      {/* Grouped into "what/where this project is" vs "what the
+          calculation is based on" — previously all 8 fields sat in one
+          undifferentiated grid with no distinction between identity
+          fields and calculation inputs. */}
+      {!exportMode && (
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          Project Info
+        </h3>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Field label="Project Name" required>
           {exportMode ? (
             <DisplayValue>{project.name}</DisplayValue>
           ) : (
-            <input
-              className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={project.name ?? ""}
-              onChange={(e) => onUpdate({ name: e.target.value })}
-            />
+            <>
+              <input
+                id={fieldId("name")}
+                className={inputClass("name")}
+                value={project.name ?? ""}
+                onChange={(e) => onUpdate({ name: e.target.value })}
+                onBlur={() => markTouched("name")}
+                {...fieldA11yProps("name")}
+              />
+              {renderFieldMessage("name")}
+            </>
           )}
         </Field>
 
@@ -143,52 +267,71 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
           )}
         </Field>
 
+        <Field label="Address" required>
+          {exportMode ? (
+            <DisplayValue>{project.address}</DisplayValue>
+          ) : (
+            <>
+              <input
+                id={fieldId("address")}
+                className={inputClass("address")}
+                value={project.address ?? ""}
+                onChange={(e) => onUpdate({ address: e.target.value })}
+                onBlur={() => markTouched("address")}
+                {...fieldA11yProps("address")}
+              />
+              {renderFieldMessage("address")}
+            </>
+          )}
+        </Field>
+      </div>
+
+      {!exportMode && (
+        <h3 className="mb-2 mt-6 border-t border-slate-100 pt-4 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          Design Conditions
+        </h3>
+      )}
+      <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 ${exportMode ? "mt-4" : ""}`}>
         {/* Region */}
         <Field label="Region" required>
           {exportMode ? (
             <DisplayValue>{regionLabel}</DisplayValue>
           ) : (
-            <select
-              value={project.region ?? ""}
-              onChange={(e) => {
-                const region = e.target.value as Region;
-                const updatedDefaults = getDefaultUValues({
-                  ...project,
-                  region,
-                });
-                const defaults = REGION_DEFAULTS[region] ?? {};
-                onUpdate({
-                  region,
-                  ...defaults,
-                  customUOverrides: updatedDefaults,
-                });
-              }}
-              className="w-full border border-slate-300 rounded-md px-3 py-2"
-            >
-              {REGION_OPTIONS.map((o) => (
-                <option key={o.key} value={o.key}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+            <>
+              <select
+                id={fieldId("region")}
+                value={project.region ?? ""}
+                onChange={(e) => {
+                  const region = e.target.value as Region;
+                  const updatedDefaults = getDefaultUValues({
+                    ...project,
+                    region,
+                  });
+                  const defaults = REGION_DEFAULTS[region] ?? {};
+                  onUpdate({
+                    region,
+                    ...defaults,
+                    customUOverrides: updatedDefaults,
+                  });
+                }}
+                onBlur={() => markTouched("region")}
+                className={inputClass("region")}
+                {...fieldA11yProps("region")}
+              >
+                {REGION_OPTIONS.map((o) => (
+                  <option key={o.key} value={o.key}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              {renderFieldMessage("region")}
+            </>
           )}
 
           <div className="text-xs text-slate-500 mt-1">
             Using: <span className="font-semibold">{regionLabel}</span> —{" "}
             <span className="font-medium">{standardsLabel}</span>
           </div>
-        </Field>
-
-        <Field label="Address" required>
-          {exportMode ? (
-            <DisplayValue>{project.address}</DisplayValue>
-          ) : (
-            <input
-              className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={project.address ?? ""}
-              onChange={(e) => onUpdate({ address: e.target.value })}
-            />
-          )}
         </Field>
 
         {/* Design Temperatures */}
@@ -202,22 +345,28 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
               {uiUnits.temperature}
             </DisplayValue>
           ) : (
-            <input
-              type="number"
-              step="0.5"
-              className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={
-                toDisplayTemperature(project.region, project.indoorTempC) ?? ""
-              }
-              onChange={(e) => {
-                const raw =
-                  e.target.value === "" ? undefined : Number(e.target.value);
+            <>
+              <input
+                id={fieldId("indoorTempC")}
+                type="number"
+                step="0.5"
+                className={inputClass("indoorTempC")}
+                value={
+                  toDisplayTemperature(project.region, project.indoorTempC) ?? ""
+                }
+                onChange={(e) => {
+                  const raw =
+                    e.target.value === "" ? undefined : Number(e.target.value);
 
-                onUpdate({
-                  indoorTempC: fromDisplayTemperature(project.region, raw),
-                });
-              }}
-            />
+                  onUpdate({
+                    indoorTempC: fromDisplayTemperature(project.region, raw),
+                  });
+                }}
+                onBlur={() => markTouched("indoorTempC")}
+                {...fieldA11yProps("indoorTempC")}
+              />
+              {renderFieldMessage("indoorTempC")}
+            </>
           )}
         </Field>
 
@@ -231,27 +380,31 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
               {uiUnits.temperature}
             </DisplayValue>
           ) : (
-            <input
-              type="number"
-              step="0.5"
-              required
-              aria-required="true"
-              placeholder="Coldest Design Day (Required)"
-              className="
-        w-full border border-slate-300 rounded-md px-3 py-2 placeholder-red-300
-      "
-              value={
-                toDisplayTemperature(project.region, project.outdoorTempC) ?? ""
-              }
-              onChange={(e) => {
-                const raw =
-                  e.target.value === "" ? undefined : Number(e.target.value);
+            <>
+              <input
+                id={fieldId("outdoorTempC")}
+                type="number"
+                step="0.5"
+                required
+                aria-required="true"
+                placeholder="Coldest Design Day (Required)"
+                className={`${inputClass("outdoorTempC")} placeholder-red-300`}
+                value={
+                  toDisplayTemperature(project.region, project.outdoorTempC) ?? ""
+                }
+                onChange={(e) => {
+                  const raw =
+                    e.target.value === "" ? undefined : Number(e.target.value);
 
-                onUpdate({
-                  outdoorTempC: fromDisplayTemperature(project.region, raw),
-                });
-              }}
-            />
+                  onUpdate({
+                    outdoorTempC: fromDisplayTemperature(project.region, raw),
+                  });
+                }}
+                onBlur={() => markTouched("outdoorTempC")}
+                {...fieldA11yProps("outdoorTempC")}
+              />
+              {renderFieldMessage("outdoorTempC")}
+            </>
           )}
         </Field>
 
@@ -267,28 +420,34 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
               }[project.insulationPeriod ?? ""] ?? "—"}
             </DisplayValue>
           ) : (
-            <select
-              className="w-full border border-slate-300 rounded-md px-3 py-2"
-              value={project.insulationPeriod ?? ""}
-              onChange={(e) => {
-                const insulationPeriod = e.target.value as InsulationPeriodKey;
+            <>
+              <select
+                id={fieldId("insulationPeriod")}
+                className={inputClass("insulationPeriod")}
+                value={project.insulationPeriod ?? ""}
+                onChange={(e) => {
+                  const insulationPeriod = e.target.value as InsulationPeriodKey;
 
-                const updatedDefaults = getDefaultUValues({
-                  ...project,
-                  insulationPeriod,
-                });
+                  const updatedDefaults = getDefaultUValues({
+                    ...project,
+                    insulationPeriod,
+                  });
 
-                onUpdate({
-                  insulationPeriod,
-                  customUOverrides: updatedDefaults,
-                });
-              }}
-            >
-              <option value="pre1980">Pre-1980 (Poor)</option>
-              <option value="y1980_2000">1980–2000 (Average)</option>
-              <option value="y2001_2015">2001–2015 (Good)</option>
-              <option value="y2016p">2016+ (Efficient)</option>
-            </select>
+                  onUpdate({
+                    insulationPeriod,
+                    customUOverrides: updatedDefaults,
+                  });
+                }}
+                onBlur={() => markTouched("insulationPeriod")}
+                {...fieldA11yProps("insulationPeriod")}
+              >
+                <option value="pre1980">Pre-1980 (Poor)</option>
+                <option value="y1980_2000">1980–2000 (Average)</option>
+                <option value="y2001_2015">2001–2015 (Good)</option>
+                <option value="y2016p">2016+ (Efficient)</option>
+              </select>
+              {renderFieldMessage("insulationPeriod")}
+            </>
           )}
         </Field>
 
@@ -339,13 +498,16 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
               <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
                 <Field label="Standards Mode" required>
                   <select
-                    className="w-full border border-slate-300 rounded-md px-3 py-2"
+                    id={fieldId("standardsMode")}
+                    className={inputClass("standardsMode")}
                     value={project.standardsMode ?? ""}
                     onChange={(e) =>
                       onUpdate({
                         standardsMode: e.target.value as StandardsMode,
                       })
                     }
+                    onBlur={() => markTouched("standardsMode")}
+                    {...fieldA11yProps("standardsMode")}
                   >
                     {standardsForRegion.map((s) => (
                       <option key={s.key} value={s.key}>
@@ -353,6 +515,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
                       </option>
                     ))}
                   </select>
+                  {renderFieldMessage("standardsMode")}
                 </Field>
                 {numericField(
                   "Safety Factor (%)",
