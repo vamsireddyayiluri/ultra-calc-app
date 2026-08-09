@@ -121,7 +121,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
   const [labelFontSize, setLabelFontSize] = React.useState(16);
   const uiUnits = getUIUnits(project.region);
 
-  const lengthLabel = `← Length (${uiUnits.length}) →`;
+  const lengthLabel = `← Joist Length (${uiUnits.length}) →`;
   const widthLabel = `← Width (${uiUnits.length}) →`;
 
   useEffect(() => {

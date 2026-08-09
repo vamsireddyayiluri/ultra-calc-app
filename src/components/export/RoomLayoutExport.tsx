@@ -1,6 +1,6 @@
 // src/components/export/RoomLayoutExport.tsx
 import React from "react";
-import { FloorLayoutSvg, SCALE } from "../../layout/FloorLayoutSvg";
+import { FloorLayoutSvg } from "../../layout/FloorLayoutSvg";
 import { RightSidebar } from "../../layout/RightSidebar";
 import { buildLayout } from "../../layout/layoutEngine";
 import { runUltraCalc } from "../../utils/ultraCalcAdapter";
@@ -36,6 +36,40 @@ interface SidebarImages {
   label: string;
   isOpenWeb: boolean;
   installMethod?: InstallMethod;
+}
+
+const A4_CONTENT_WIDTH_MM = 182; // 210mm page - 14mm margins on both sides.
+const LAYOUT_VISUAL_HEIGHT_MM = 222;
+const SIDEBAR_WIDTH_MM = 34;
+const DIAGRAM_SIDEBAR_GAP_MM = 6;
+const LENGTH_LABEL_GUTTER_MM = 10;
+const WIDTH_LABEL_GUTTER_MM = 9;
+const ROOM_INFO_HEIGHT_MM = 17;
+const DIAGRAM_MIN_SIDE_MM = 28;
+const LENGTH_LABEL_GAP_MM = 4;
+
+function getPdfDiagramSize(layout: ReturnType<typeof buildLayout>) {
+  const diagramUnits = {
+    width: Math.max(1, layout.width + 1),
+    height: Math.max(1, layout.height + 1),
+  };
+
+  const availableWidth =
+    A4_CONTENT_WIDTH_MM -
+    SIDEBAR_WIDTH_MM -
+    DIAGRAM_SIDEBAR_GAP_MM -
+    LENGTH_LABEL_GUTTER_MM;
+  const availableHeight = LAYOUT_VISUAL_HEIGHT_MM - WIDTH_LABEL_GUTTER_MM;
+
+  const scale = Math.min(
+    availableWidth / diagramUnits.width,
+    availableHeight / diagramUnits.height,
+  );
+
+  return {
+    widthMm: Math.max(DIAGRAM_MIN_SIDE_MM, diagramUnits.width * scale),
+    heightMm: Math.max(DIAGRAM_MIN_SIDE_MM, diagramUnits.height * scale),
+  };
 }
 
 export const RoomLayoutExport = React.forwardRef<HTMLDivElement, Props>(
@@ -205,6 +239,14 @@ export const RoomLayoutExport = React.forwardRef<HTMLDivElement, Props>(
     /* ---------------- WAIT UNTIL READY ---------------- */
     if (!layout || !sidebarImages) return null;
 
+    const diagramSize = getPdfDiagramSize(layout);
+    const layoutBounds = {
+      x: LENGTH_LABEL_GUTTER_MM,
+      y: 0,
+      width: diagramSize.widthMm,
+      height: diagramSize.heightMm,
+    };
+
     /* ---------------- RENDER ---------------- */
     return (
       <ReportPage
@@ -220,63 +262,98 @@ export const RoomLayoutExport = React.forwardRef<HTMLDivElement, Props>(
           style={{
             display: "flex",
             flexDirection: "column",
-            alignItems: "center", // center vertically
-            justifyContent: "center",
-            marginBottom: "6mm",
+            height: "100%",
+            minHeight: 0,
           }}
         >
           <div
             style={{
               display: "flex",
-              alignItems: "center", // center vertically
+              alignItems: "center",
               justifyContent: "center",
-              flex: 1, // take remaining space
-
-              marginBottom: "6mm",
+              flex: "1 1 auto",
+              minHeight: 0,
+              marginBottom: "4mm",
             }}
           >
             {room.installMethod !== "INSLAB" ? (
-              <div style={{ display: "flex", width: "100%", height: "100%" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "stretch",
+                  width: "100%",
+                  height: `${LAYOUT_VISUAL_HEIGHT_MM}mm`,
+                  maxHeight: "100%",
+                  gap: `${DIAGRAM_SIDEBAR_GAP_MM}mm`,
+                }}
+              >
                 <div
                   style={{
-                    flex: 1,
+                    flex: "1 1 auto",
                     position: "relative",
-                    paddingLeft: "34px",
-                    paddingBottom: "32px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    minWidth: 0,
                   }}
                 >
+                  <div
+                    style={{
+                      position: "relative",
+                      width: `${
+                        diagramSize.widthMm + LENGTH_LABEL_GUTTER_MM
+                      }mm`,
+                      height: `${
+                        diagramSize.heightMm + WIDTH_LABEL_GUTTER_MM
+                      }mm`,
+                    }}
+                  >
                   {/* Length */}
                   <div
                     style={{
                       position: "absolute",
-                      left: 0,
-                      top: "50%",
-                      transform: "translateY(-50%) rotate(-90deg)",
-                      transformOrigin: "left center",
-                      fontSize: "16px",
-                      fontWeight: 600,
+                      left: `${layoutBounds.x - LENGTH_LABEL_GAP_MM}mm`,
+                      top: `${layoutBounds.y + layoutBounds.height / 2}mm`,
+                      transform: "translate(-50%, -50%) rotate(-90deg)",
+                      transformOrigin: "center center",
+                      fontSize: "13px",
+                      fontWeight: 700,
                       color: "#475569",
+                      lineHeight: 1,
+                      textAlign: "center",
                       whiteSpace: "nowrap",
                     }}
                   >
-                    ← Length →
+                    ← Joist Length →
                   </div>
 
-                  <FloorLayoutSvg
-                    layout={layout}
-                    installMethod={room.installMethod}
-                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: `${layoutBounds.x}mm`,
+                      top: `${layoutBounds.y}mm`,
+                      width: `${layoutBounds.width}mm`,
+                      height: `${layoutBounds.height}mm`,
+                    }}
+                  >
+                    <FloorLayoutSvg
+                      layout={layout}
+                      installMethod={room.installMethod}
+                    />
+                  </div>
 
                   {/* Width */}
                   <div
                     style={{
                       position: "absolute",
-                      bottom: 0,
-                      left: "50%",
-                      transform: "translateX(-50%)",
-                      fontSize: "16px",
-                      fontWeight: 600,
+                      left: `${layoutBounds.x}mm`,
+                      top: `${layoutBounds.y + layoutBounds.height + 4}mm`,
+                      width: `${layoutBounds.width}mm`,
+                      fontSize: "13px",
+                      fontWeight: 700,
                       color: "#475569",
+                      lineHeight: 1,
+                      textAlign: "center",
                       whiteSpace: "nowrap",
                     }}
                   >
@@ -284,16 +361,36 @@ export const RoomLayoutExport = React.forwardRef<HTMLDivElement, Props>(
                   </div>
                 </div>
 
-                <RightSidebar images={sidebarImages} />
+                </div>
+
+                <div
+                  style={{
+                    flex: `0 0 ${SIDEBAR_WIDTH_MM}mm`,
+                    width: `${SIDEBAR_WIDTH_MM}mm`,
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "flex-start",
+                    paddingTop: "8mm",
+                  }}
+                >
+                  <RightSidebar images={sidebarImages} />
+                </div>
               </div>
             ) : (
               <RightSidebar images={sidebarImages} />
             )}
           </div>
-          <div style={{ marginTop: "2px", textAlign: "center" }}>
-            <div style={{ fontSize: "20px", fontWeight: 600 }}>{room.name}</div>
+          <div
+            style={{
+              flex: `0 0 ${ROOM_INFO_HEIGHT_MM}mm`,
+              textAlign: "center",
+            }}
+          >
+            <div style={{ fontSize: "18px", fontWeight: 700, lineHeight: 1.2 }}>
+              {room.name}
+            </div>
 
-            <div style={{ fontSize: "20px", color: "#6b7280" }}>
+            <div style={{ fontSize: "15px", color: "#6b7280", lineHeight: 1.3 }}>
               {dimensionText}
             </div>
           </div>
