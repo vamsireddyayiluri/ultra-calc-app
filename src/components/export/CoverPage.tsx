@@ -13,6 +13,7 @@ import { REGION_OPTIONS } from "../../models/presets";
 import { STANDARDS_OPTIONS } from "../forms/ProjectForm";
 import { formatProjectSummary } from "../../utils/formatProjectSummary";
 import { getHeatingSystemLabel } from "../../utils/heatingSystem";
+import { HEAT_PUMP_WATER_TEMPERATURE_NOTE } from "../../utils/formatWaterTemperature";
 
 interface Props {
   project: ProjectSettings & { rooms: RoomInput[] };
@@ -124,6 +125,19 @@ export const CoverPage = React.forwardRef<HTMLDivElement, Props>(
                   label="Required Water Temperature"
                   value={summary?.waterTempRange_C}
                 />
+                {project.heatingSystem === "HEAT_PUMP" &&
+                  summary?.waterTempRange_C && (
+                    <div
+                      style={{
+                        margin: "-2px 0 6px",
+                        fontSize: "8.5px",
+                        lineHeight: 1.35,
+                        color: "#64748b",
+                      }}
+                    >
+                      {HEAT_PUMP_WATER_TEMPERATURE_NOTE}
+                    </div>
+                  )}
                 <ReportRow label="Total Tubing" value={display.tubing} />
                 <ReportRow label="Total Loops" value={display.loops} />
                 <ReportRow label="Total Ultra-Fins" value={display.fins} />

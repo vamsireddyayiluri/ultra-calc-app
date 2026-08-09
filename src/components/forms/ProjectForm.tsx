@@ -304,9 +304,8 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
               })}
             </div>
             <div className="mt-2 text-xs text-slate-500">
-              Heat Pump spacing optimisation will be implemented later after
-              business confirmation. Current spacing and material calculations
-              are unchanged.
+              Heat Pump projects use the enhanced Ultra-Fin layout for tighter
+              spacing and an operating water-temperature range.
             </div>
           </>
         )}
