@@ -1,5 +1,6 @@
-import { Region, RoomResults } from "../models/projectTypes";
-import { W_to_Btuh, Wpm2_to_Btuhft2, m2_to_ft2, C_to_F } from "./conversions";
+import { HeatingSystem, Region, RoomResults } from "../models/projectTypes";
+import { W_to_Btuh, Wpm2_to_Btuhft2 } from "./conversions";
+import { formatRequiredWaterTemperature } from "./formatWaterTemperature";
 
 export interface DisplayRoomResults {
 totalHeat: string
@@ -14,7 +15,8 @@ totalHeat: string
 }
 export function formatRoomResults(
   region: Region,
-  r: RoomResults
+  r: RoomResults,
+  heatingSystem?: HeatingSystem,
 ): DisplayRoomResults {
   const isImperial =
     region === "US" || region === "CA_IMPERIAL" || region === "CA_METRIC";
@@ -44,8 +46,11 @@ export function formatRoomResults(
       ? `${Math.round(W_to_Btuh(r.qGround_W))} Btu/h`
       : `${Math.round(r.qGround_W)} W`,
 
-    waterTemp: isImperial
-      ? `${Math.round(C_to_F(r.waterTemp_C))} °F`
-      : `${Math.round(r.waterTemp_C)} °C`,
+    waterTemp: formatRequiredWaterTemperature(
+      region,
+      heatingSystem,
+      r.waterTemp_C,
+      isImperial,
+    ),
   };
 }

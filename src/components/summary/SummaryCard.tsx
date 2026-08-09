@@ -5,6 +5,7 @@ import { SummaryRow } from "./SummaryRow";
 import { formatProjectSummary } from "../../utils/formatProjectSummary";
 import { formatSpacing } from "../../utils/formatResults";
 import { getHeatingSystemLabel } from "../../utils/heatingSystem";
+import { HEAT_PUMP_WATER_TEMPERATURE_NOTE } from "../../utils/formatWaterTemperature";
 
 interface SummaryCardProps {
   project: ProjectSettings;
@@ -73,11 +74,9 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
         )}
       </div>
 
-      {summary.waterTempRange_C && (
+      {summary.waterTempRange_C && project.heatingSystem === "HEAT_PUMP" && (
         <p className="mt-2 text-xs text-slate-500">
-          Typical operating range: 35–82°C (95–180°F). Actual operating
-          temperature depends on outdoor conditions and heat load. Higher
-          temperatures may be used if additional heat output is required.
+          {HEAT_PUMP_WATER_TEMPERATURE_NOTE}
         </p>
       )}
 
