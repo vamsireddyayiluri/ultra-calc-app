@@ -162,6 +162,7 @@ export interface ProjectSummary {
   fin_halves?: any;
   totalFinHalves: any;
   totalW: number;
+  totalArea_m2: number;
   totalTubing_m: number;
 
   /** Total number of fins */

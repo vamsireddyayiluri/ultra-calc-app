@@ -94,6 +94,7 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
         Materials &amp; Installation
       </h3>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <SummaryRow label="Total Project Area" value={display.totalArea} />
         <SummaryRow label="Average Per-Area Load" value={display.avgLoad} />
         <SummaryRow label="Total Tubing" value={display.tubing} />
         <SummaryRow label="Total Ultra-Fins" value={display.fins} />

@@ -146,7 +146,7 @@ export const MaterialsSummaryPage = React.forwardRef<HTMLDivElement, Props>(
                 <th style={th}>Loops</th>
                 <th style={th}>Ultra-Fins</th>
                 <th style={th}>Clips</th>
-                <th style={th}>Tube Spacing</th>
+                <th style={th}>Ultra-Fin Spacing</th>
                 <th style={th}>Install Method</th>
               </tr>
             </thead>

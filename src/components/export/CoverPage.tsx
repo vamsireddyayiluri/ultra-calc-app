@@ -120,6 +120,7 @@ export const CoverPage = React.forwardRef<HTMLDivElement, Props>(
             {display ? (
               <>
                 <ReportRow label="Total Heat Load" value={display.totalHeat} />
+                <ReportRow label="Total Project Area" value={display.totalArea} />
                 <ReportRow label="Average Load Density" value={display.avgLoad} />
                 <ReportRow
                   label="Required Water Temperature"
