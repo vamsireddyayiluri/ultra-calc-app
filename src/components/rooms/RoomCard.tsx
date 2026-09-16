@@ -1140,7 +1140,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
                     ultra.selection.tubeSize,
                   )}
                 />
-                <MetaItem label="Tube Spacing" value={tubeSpacingDisplay} />
+                <MetaItem label="Ultra-Fin Spacing" value={tubeSpacingDisplay} />
                 <MetaItem
                   label="Install Method"
                   value={getInstallMethodLabel(room.installMethod)}
