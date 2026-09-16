@@ -18,6 +18,7 @@ import {
   toDisplayUValue,
   toDisplayVentilation,
 } from "../../utils/display";
+import { getHeatingSystemLabel } from "../../utils/heatingSystem";
 
 interface Props {
   project: ProjectSettings & { rooms: RoomInput[] };
@@ -78,6 +79,10 @@ export const DesignParametersPage = React.forwardRef<HTMLDivElement, Props>(
         <div style={{ display: "flex", gap: "24px" }}>
           <div style={{ flex: 1 }}>
             <ReportSectionHeading>Region &amp; Standards</ReportSectionHeading>
+            <ReportRow
+              label="Heating System"
+              value={getHeatingSystemLabel(project.heatingSystem)}
+            />
             <ReportRow label="Region" value={regionLabel} />
             <ReportRow label="Standards" value={standardsLabel} />
 

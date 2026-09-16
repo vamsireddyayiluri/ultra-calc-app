@@ -131,6 +131,7 @@ export const ROOM_FIELD_LABELS: Partial<Record<keyof RoomInput, string>> = {
 export const PROJECT_FIELD_LABELS: Partial<Record<keyof ProjectSettings, string>> = {
   name: "Project Name",
   region: "Region",
+  heatingSystem: "Heating System",
   address: "Address",
   standardsMode: "Standards Mode",
   insulationPeriod: "Insulation Period",

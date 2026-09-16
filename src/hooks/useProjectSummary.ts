@@ -7,6 +7,7 @@ import {
 } from "../models/projectTypes";
 import { normalizeProjectSettings } from "../utils/normalizeProject";
 import { runUltraCalc } from "../utils/ultraCalcAdapter";
+import { formatRequiredWaterTemperature } from "../utils/formatWaterTemperature";
 
 export function useProjectSummary(
   rooms: RoomInput[],
@@ -115,13 +116,12 @@ export function useProjectSummary(
     let waterTempRange_C: string | undefined;
 
     if (maxWaterTemp_C > 0) {
-      if (project.region === "US" || project.region === "CA_IMPERIAL") {
-        const tempF = Math.round((maxWaterTemp_C * 9) / 5 + 32);
-        waterTempRange_C = `${tempF}°F`;
-      } else {
-        const tempC = Math.round(maxWaterTemp_C);
-        waterTempRange_C = `${tempC}°C`;
-      }
+      waterTempRange_C = formatRequiredWaterTemperature(
+        project.region,
+        project.heatingSystem,
+        maxWaterTemp_C,
+        project.region === "US" || project.region === "CA_IMPERIAL",
+      );
     }
 
     return {

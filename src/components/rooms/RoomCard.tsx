@@ -15,6 +15,7 @@ import {
 import { getUIUnits } from "../../helpers/updateUiLabels";
 import { normalizeProjectSettings } from "../../utils/normalizeProject";
 import { formatRoomResults } from "../../utils/formatRoomResults";
+import { HEAT_PUMP_WATER_TEMPERATURE_NOTE } from "../../utils/formatWaterTemperature";
 import {
   fromDisplayArea,
   fromDisplayLength,
@@ -120,7 +121,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
   const [labelFontSize, setLabelFontSize] = React.useState(16);
   const uiUnits = getUIUnits(project.region);
 
-  const lengthLabel = `← Length (${uiUnits.length}) →`;
+  const lengthLabel = `← Joist Length (${uiUnits.length}) →`;
   const widthLabel = `← Width (${uiUnits.length}) →`;
 
   useEffect(() => {
@@ -398,7 +399,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
 
   const lenLabel = uiUnits.length;
   const areaLabel = uiUnits.area;
-  const display = formatRoomResults(project.region, res);
+  const display = formatRoomResults(project.region, res, project.heatingSystem);
 
   const DisplayValue: React.FC<{ children: React.ReactNode }> = ({
     children,
@@ -964,6 +965,12 @@ export const RoomCard: React.FC<RoomCardProps> = ({
                   {display.waterTemp}
                 </div>
               </div>
+
+              {project.heatingSystem === "HEAT_PUMP" && (
+                <p className="mt-2 text-xs text-slate-500">
+                  {HEAT_PUMP_WATER_TEMPERATURE_NOTE}
+                </p>
+              )}
 
               {res.warnings?.length > 0 && (
                 <div className="mt-3 text-xs text-amber-700 bg-amber-50 border rounded-md p-2">

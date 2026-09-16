@@ -15,12 +15,20 @@ import {
 } from "firebase/firestore";
 import { ProjectSettings, RoomInput } from "../models/projectTypes";
 import { uid } from "../utils/uid";
+import { DEFAULT_HEATING_SYSTEM } from "../utils/heatingSystem";
 
 export type RichProject = ProjectSettings & {
   rooms: RoomInput[];
   id?: string;
   userId?: string;
 };
+
+function withProjectDefaults(project: RichProject): RichProject {
+  return {
+    ...project,
+    heatingSystem: project.heatingSystem ?? DEFAULT_HEATING_SYSTEM,
+  };
+}
 
 /**
  * Recursively replaces `undefined` with `null` (objects and arrays).
@@ -120,10 +128,12 @@ export async function fetchAllProjects(): Promise<RichProject[]> {
       orderBy("name", "asc")
     );
     const snapshot = await getDocs(q);
-    const projects: RichProject[] = snapshot.docs.map((doc) => ({
-      ...(doc.data() as RichProject),
-      id: doc.id,
-    }));
+    const projects: RichProject[] = snapshot.docs.map((doc) =>
+      withProjectDefaults({
+        ...(doc.data() as RichProject),
+        id: doc.id,
+      }),
+    );
     return projects;
   } catch (error) {
     console.error("Error fetching projects:", error);
@@ -142,10 +152,10 @@ export async function fetchProjectById(
     const docRef = doc(db, "projects", id);
     const snapshot = await getDoc(docRef);
     if (!snapshot.exists()) return null;
-    const project: RichProject = {
+    const project: RichProject = withProjectDefaults({
       ...(snapshot.data() as RichProject),
       id: snapshot.id,
-    };
+    });
     if (project.userId !== userId) return null;
     return project;
   } catch (error) {

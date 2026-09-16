@@ -14,6 +14,8 @@ export type InsulationPeriodKey =
   | "y2001_2015"
   | "y2016p";
 
+export type HeatingSystem = "STANDARD" | "HEAT_PUMP";
+
 export type UIUnits = {
   length: "m" | "ft";
   area: "m²" | "ft²";
@@ -54,6 +56,7 @@ export interface ProjectSettings {
   contractor: string;
   address: string;
   region: Region;
+  heatingSystem: HeatingSystem;
   standardsMode: StandardsMode;
   insulationPeriod?: InsulationPeriodKey;
   indoorTempC: number;

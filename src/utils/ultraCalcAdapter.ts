@@ -1,5 +1,5 @@
 // utils/runUltraCalc.ts
-import { ultraCalc, UltraCalcInput } from "./ultraCalcLocked";
+import { determineMode, ultraCalc, UltraCalcInput } from "./ultraCalcLocked";
 import { RoomInput, RoomResults, ProjectSettings } from "../models/projectTypes";
 
 export function runUltraCalc(
@@ -7,6 +7,13 @@ export function runUltraCalc(
   results: RoomResults,
   project: ProjectSettings
 ) {
+  const heatingSystem = project.heatingSystem ?? "STANDARD";
+  // Heat Pump spacing optimisation will be implemented later after
+  // business confirmation. Current UltraCalc sizing remains unchanged:
+  // the client has not confirmed whether Heat Pump projects should
+  // always use the tightest spacing or keep dynamic spacing while
+  // optimizing for lower water temperature.
+
   const input: UltraCalcInput = {
     heatLoad: {
       unit: "W_M2",
@@ -20,7 +27,33 @@ export function runUltraCalc(
     method: mapInstallMethod(room.installMethod),
     joist: mapJoist(room.joistSpacing?.toString()),
   };
+
+  if (project.heatingSystem === "HEAT_PUMP") {
+    return ultraCalc(applyHeatPumpMinimumSpacing(input));
+  }
+
   return ultraCalc(input);
+}
+
+function applyHeatPumpMinimumSpacing(input: UltraCalcInput): UltraCalcInput {
+  const standard = ultraCalc(input);
+  if (standard.selection.mode !== "LL") return input;
+
+  return {
+    ...input,
+    heatLoad: {
+      unit: "BTU_FT2",
+      value: firstHighLoadBTU(),
+    },
+  };
+}
+
+function firstHighLoadBTU(): number {
+  let loadBTU = 0;
+  while (determineMode(loadBTU) === "LL") {
+    loadBTU += 1;
+  }
+  return loadBTU;
 }
 
 function mapInstallMethod(method?: string) {
