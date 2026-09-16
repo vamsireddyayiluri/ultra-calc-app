@@ -5,6 +5,9 @@ import ProtectedRoute from "./ProtectedRoute";
 import HomePage from "../pages/HomePage";
 import RedirectHandler from "./RedirectHandler";
 import ProjectPage from "../pages/ProjectPage";
+import ProjectCreationChoicePage from "../pages/ProjectCreationChoicePage";
+import PlanImportPlaceholderPage from "../pages/PlanImportPlaceholderPage";
+import ManualPlanEntryPage from "../pages/ManualPlanEntryPage";
 import ProfilePage from "../pages/ProfilePage";
 
 export default function AppRoutes() {
@@ -25,7 +28,12 @@ export default function AppRoutes() {
     },
     {
       element: <ProtectedRoute />,
-      children: [{ path: "/project", element: <ProjectPage /> }],
+      children: [
+        { path: "/project/new", element: <ProjectCreationChoicePage /> },
+        { path: "/project/import", element: <PlanImportPlaceholderPage /> },
+        { path: "/project/manual-import", element: <ManualPlanEntryPage /> },
+        { path: "/project", element: <ProjectPage /> },
+      ],
     },
     {
       element: <ProtectedRoute />,

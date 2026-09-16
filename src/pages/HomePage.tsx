@@ -184,7 +184,7 @@ export default function HomePage() {
     }
   }, [params.id, projects]);
 
-  const addProject = () => navigate("/project");
+  const addProject = () => navigate("/project/new");
 
   // Stable across renders so ProjectCard's React.memo (see
   // components/projects/ProjectCard.tsx) is an actual optimization at
@@ -338,7 +338,7 @@ export default function HomePage() {
                 contractors.
               </p>
               <button
-                onClick={() => navigate("/project")}
+                onClick={() => navigate("/project/new")}
                 className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold transition-shadow transition-colors duration-150 shadow-sm bg-[#1E3A8A] text-white hover:shadow-md hover:bg-[#17306f] focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/30"
               >
                 + Add Project
