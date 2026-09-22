@@ -17,6 +17,7 @@ export function useProjectSummary(
     if (!rooms?.length) {
       return {
         totalW: 0,
+        totalArea_m2: 0,
         totalTubing_m: 0,
         totalFins: 0,
         totalFinHalves: 0,
@@ -126,6 +127,7 @@ export function useProjectSummary(
 
     return {
       totalW,
+      totalArea_m2,
       totalTubing_m,
       totalFins,
       totalFinHalves,
