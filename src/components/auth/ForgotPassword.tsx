@@ -27,10 +27,8 @@ export default function ForgotPassword() {
       await sendResetEmail(email);
       showMessage("Password reset email sent successfully!", "success");
       navigate("/login");
-    } catch (err: any) {
-      const msg =
-        err?.message ||
-        "Failed to send password reset email. Please try again later.";
+    } catch {
+      const msg = "We couldn't send the reset email. Please check the address and try again.";
       setErrorMsg(msg);
       showMessage(msg, "error");
     } finally {

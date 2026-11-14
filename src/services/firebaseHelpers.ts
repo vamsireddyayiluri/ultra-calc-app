@@ -12,8 +12,9 @@ import {
   getDoc,
   deleteDoc,
   updateDoc,
+  runTransaction,
 } from "firebase/firestore";
-import { ProjectSettings, RoomInput } from "../models/projectTypes";
+import { PlanImportProjectMetadata, ProjectSettings, RoomInput } from "../models/projectTypes";
 import { uid } from "../utils/uid";
 import { DEFAULT_HEATING_SYSTEM } from "../utils/heatingSystem";
 
@@ -162,6 +163,72 @@ export async function fetchProjectById(
     console.error("Error fetching project:", error);
     return null;
   }
+}
+
+export type AppendRoomDecision = "add" | "replace" | "skip";
+
+export interface AppendRoomDecisionInput {
+  decision: AppendRoomDecision;
+  /** The converted room from this import run (already has its own fresh id). */
+  roomInput: RoomInput;
+  /** Required when decision is "replace" - the existing room to update in place. */
+  matchedExistingRoomId: string | null;
+}
+
+/**
+ * Appends reviewed plan-import rooms to an EXISTING project without creating a
+ * new project, replacing an existing project, or touching any room the
+ * reviewer didn't explicitly decide on. Runs inside a Firestore transaction so
+ * a concurrent edit to the SAME project (another tab, or a second append)
+ * can never be silently lost - the transaction always reads the latest rooms
+ * right before merging and Firestore retries automatically on conflict.
+ *
+ * "replace" only overwrites name/length_m/width_m on the matched existing
+ * room; every other field (height, windows, floor cover, etc. - anything the
+ * user may have already filled in by hand) is preserved untouched. A
+ * "replace" whose matched room no longer exists (e.g. deleted by someone else
+ * first) is treated as a no-op for that one room rather than failing the
+ * whole append.
+ */
+export async function appendRoomsToProject(
+  projectId: string,
+  decisions: AppendRoomDecisionInput[],
+  runMetadata: PlanImportProjectMetadata,
+): Promise<RichProject> {
+  const docRef = doc(db, "projects", projectId);
+  const userId = auth.currentUser?.uid;
+  const updated = await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(docRef);
+    if (!snapshot.exists()) {
+      throw new Error("This project no longer exists.");
+    }
+    const current = withProjectDefaults({ ...(snapshot.data() as RichProject), id: snapshot.id });
+    if (current.userId !== userId) {
+      throw new Error("You don't have access to this project.");
+    }
+    let rooms = [...current.rooms];
+    for (const entry of decisions) {
+      if (entry.decision === "skip") continue;
+      if (entry.decision === "replace" && entry.matchedExistingRoomId) {
+        rooms = rooms.map((room) =>
+          room.id === entry.matchedExistingRoomId
+            ? { ...room, name: entry.roomInput.name, length_m: entry.roomInput.length_m, width_m: entry.roomInput.width_m }
+            : room,
+        );
+        continue;
+      }
+      rooms = [...rooms, entry.roomInput];
+    }
+    const next: RichProject = {
+      ...current,
+      rooms,
+      planImportHistory: [...(current.planImportHistory ?? []), runMetadata],
+      updatedAt: Date.now(),
+    };
+    transaction.set(docRef, sanitizeForFirestore(next), { merge: true });
+    return next;
+  });
+  return updated;
 }
 export async function deleteProjectFromDb(id: string, showMessage: any) {
   try {

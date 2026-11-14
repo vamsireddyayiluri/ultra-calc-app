@@ -7,6 +7,7 @@ import RedirectHandler from "./RedirectHandler";
 import ProjectPage from "../pages/ProjectPage";
 import ProjectCreationChoicePage from "../pages/ProjectCreationChoicePage";
 import PlanImportPlaceholderPage from "../pages/PlanImportPlaceholderPage";
+import AppendPlanImportPage from "../pages/AppendPlanImportPage";
 import ManualPlanEntryPage from "../pages/ManualPlanEntryPage";
 import ProfilePage from "../pages/ProfilePage";
 
@@ -41,6 +42,10 @@ export default function AppRoutes() {
     },
     {
       element: <ProtectedRoute />,
+      children: [{ path: "/project/:id/import", element: <AppendPlanImportPage /> }],
+    },
+    {
+      element: <ProtectedRoute />,
       children: [{ path: "/profile", element: <ProfilePage /> }],
     },
 
@@ -51,7 +56,7 @@ export default function AppRoutes() {
       path: "*",
       element: (
         <div className="p-8 text-center text-gray-600">
-          404 — Page not found
+          We couldn't find that page.
         </div>
       ),
     },

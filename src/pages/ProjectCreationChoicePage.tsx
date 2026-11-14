@@ -1,12 +1,13 @@
 import { FileUp, PenLine } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { AppLayout } from "../components/layout/AppLayout";
 
 export default function ProjectCreationChoicePage() {
   const navigate = useNavigate();
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6">
-      <section className="mx-auto max-w-4xl">
+    <AppLayout>
+      <section className="mx-auto max-w-4xl py-6">
         <div className="mb-8">
           <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
             New Project
@@ -15,7 +16,7 @@ export default function ProjectCreationChoicePage() {
             How would you like to start?
           </h1>
           <p className="mt-3 max-w-2xl text-slate-600">
-            Start with the existing room-by-room editor or prepare for the future plan import workflow.
+            Start with the existing room-by-room editor, or upload a PDF plan and let Ultra-Calc help detect the rooms for you.
           </p>
         </div>
 
@@ -47,14 +48,14 @@ export default function ProjectCreationChoicePage() {
             </span>
             <h2 className="mt-5 text-lg font-semibold text-slate-900">Upload Plans</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Prepare to upload architectural plans and review AI-assisted draft rooms.
+              Upload your architectural plans and review AI-assisted draft rooms before adding them to your project.
             </p>
             <span className="mt-5 inline-block text-sm font-semibold text-emerald-700 group-hover:text-emerald-800">
-              View future import workflow
+              Upload a plan
             </span>
           </button>
         </div>
       </section>
-    </main>
+    </AppLayout>
   );
 }

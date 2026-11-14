@@ -461,7 +461,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
                 step="0.5"
                 required
                 aria-required="true"
-                placeholder="Coldest Design Day (Required)"
+                placeholder="e.g. the coldest day of the year in this area"
                 className={`${inputClass("outdoorTempC")} placeholder-red-300`}
                 value={
                   toDisplayTemperature(project.region, project.outdoorTempC) ?? ""
@@ -629,7 +629,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
                       project.region === "CA_IMPERIAL"
                         ? 0.01
                         : 0.005,
-                    hint: "Thermal bridging allowance",
+                    hint: "Extra heat loss allowance for thermal bridging — where insulation is interrupted (e.g. by structural framing)",
                     toDisplay: (v) => toDisplayPsiAllowance(project.region, v),
                     fromDisplay: (v) =>
                       fromDisplayPsiAllowance(project.region, v),
@@ -660,7 +660,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
                     min: 0,
                     max: 5,
                     step: 0.01,
-                    hint: "Typical 0.2–0.5",
+                    hint: "Air changes per hour — how often outside air replaces indoor air (typical 0.2–0.5)",
                   },
                 )}
 

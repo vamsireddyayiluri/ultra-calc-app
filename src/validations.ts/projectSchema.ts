@@ -4,7 +4,7 @@ export const projectSchema = z.object({
   name: z.string().min(1, "Project name is required"),
   region: z.string().min(1, "Region must be selected"),
   heatingSystem: z.enum(["STANDARD", "HEAT_PUMP"]).optional(),
-  address: z.string().min(1, "Address is required, Please enter valid address"),
+  address: z.string().min(1, "Address is required. Please enter a valid address."),
   standardsMode: z.string().min(1, "Standards mode must be selected"),
   indoorTempC: z.preprocess(
       (val) => (val === null || val === undefined ? -90 : val),
@@ -14,7 +14,7 @@ export const projectSchema = z.object({
         .max(50, "Invalid indoor temperature")
     )
     .refine((val) => val !== undefined, {
-      message: "indoor design temperature is required",
+      message: "Indoor design temperature is required",
     }),
   outdoorTempC: z
     .preprocess(

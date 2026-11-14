@@ -1,7 +1,6 @@
 import React, { useMemo, useRef, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Trash2 } from "lucide-react";
-import { uid } from "../utils/uid";
+import { FileUp, Trash2 } from "lucide-react";
 import {
   ProjectSettings,
   RoomInput,
@@ -23,8 +22,7 @@ import { validateProject } from "../validations.ts/projectValidator";
 import { getFriendlySaveErrorMessage } from "../utils/friendlyError";
 import { exportPDF, loadImageAsBase64 } from "../utils/pdfExport";
 import { createReadinessGate } from "../utils/exportReadiness";
-import { getDefaultUValues } from "../utils/uDefaults";
-import { DEFAULT_HEATING_SYSTEM } from "../utils/heatingSystem";
+import { createDraftProject, createEmptyRoom } from "../utils/projectFactory";
 import { RoomDetailsExport } from "../components/export/RoomDetailsExport";
 import { RoomLayoutExport } from "../components/export/RoomLayoutExport";
 import { CoverPage } from "../components/export/CoverPage";
@@ -78,33 +76,7 @@ export default function ProjectPage() {
         const found = await fetchProjectById(id);
         setProject(found || null);
       } else {
-        const newProj: ProjectSettings & { rooms: RoomInput[] } = {
-          id: uid(),
-          status: "draft",
-          createdAt: Date.now(),
-          name: "",
-          contractor: "",
-          address: "",
-          region: "UK",
-          heatingSystem: DEFAULT_HEATING_SYSTEM,
-          standardsMode: "BS_EN_12831",
-          insulationPeriod: "y2001_2015",
-          indoorTempC: 21,
-          outdoorTempC: null,
-          safetyFactorPct: 12.5,
-          heatUpFactorPct: 27.5,
-          psiAllowance_W_per_K: 0.04,
-          mechVent_m3_per_h: 0.4,
-          infiltrationACH: 0.25,
-          glazing: "double",
-          rooms: [],
-          customUOverrides: getDefaultUValues({
-            region: "UK",
-            standardsMode: "BS_EN_12831",
-            insulationPeriod: "y2001_2015",
-          }),
-        };
-        setProject(newProj);
+        setProject(createDraftProject());
       }
     };
 
@@ -183,23 +155,7 @@ export default function ProjectPage() {
   const addRoom = () => {
     if (!project) return;
 
-    const newRoom: RoomInput = {
-      id: uid(),
-      name: `Room ${project.rooms.length + 1}`,
-      length_m: 0,
-      width_m: 0,
-      height_m: 0,
-      exteriorLen_m: 0,
-      windowArea_m2: 0,
-      doorArea_m2: 0,
-      ceilingExposed: false,
-      floorExposed: false,
-      setpointC: 21, // Default indoor setpoint temperature (°C)
-      joistSpacing: 16, // Default joist spacing
-      floorCover: "tile_stone", // Default floor type
-      installMethod: "DRILLING", // Default install method
-      floorOnGround: false,
-    };
+    const newRoom: RoomInput = createEmptyRoom(`Room ${project.rooms.length + 1}`);
     setProject({ ...project, rooms: [...project.rooms, newRoom] });
     showMessage("Room Added", "success");
   };
@@ -375,6 +331,18 @@ export default function ProjectPage() {
                     className="px-3 py-2 text-sm font-semibold rounded-md bg-cyan-500 text-white hover:bg-cyan-600 transition shadow-sm"
                   >
                     + Add Room
+                  </button>
+                )}
+
+                {/* Add rooms from a plan - only once the project has been
+                    saved (an unsaved draft has no id to append rooms to). */}
+                {activeTab === "rooms" && project.id && (
+                  <button
+                    onClick={() => navigate(`/project/${project.id}/import`)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-md border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition"
+                  >
+                    <FileUp size={15} aria-hidden="true" />
+                    Add rooms from a plan
                   </button>
                 )}
                               </div>

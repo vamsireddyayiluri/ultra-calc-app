@@ -2,7 +2,145 @@
 
 ## Purpose
 
-This document records the current browser-only plan import implementation and the recommended next phases. The workflow remains isolated from the existing manual project editor, RoomInput model, calculation logic, Firebase persistence, and backend infrastructure.
+This document originally recorded the browser-only plan import experiment. The
+browser sections below remain useful historical detail, but they are no longer a
+complete description of the active implementation.
+
+## Current V2 status (2026-10-09)
+
+The plan-import page now also exposes a separate backend V2 region pipeline.
+V2 renders source-resolution PDF regions, returns the versioned
+`plan-evidence/2.0` contract, performs independent room-centered verification,
+and keeps final application length/width mappings abstained until review.
+
+The review/import boundary now uses one axis-specific eligibility rule across
+the application mapping, React review choices, converter, backend validation,
+and benchmark. Evidence omitted from the final application mapping remains
+inspectable but cannot be selected as machine-approved evidence. A reviewer can
+still enter an explicit correction, which is recorded with `user_entered`
+provenance and never mutates the AI extraction result.
+
+Every extracted room now receives a deterministic source-PDF context crop made
+from its room/label coordinates, relevant dimension text, available span
+endpoints, and bounded padding. The review UI displays this crop beside the room
+fields and highlights selected length and width evidence. It supports direct
+dimension corrections, missing dimensions, room exclusion, duplicate marking,
+and manually added rooms. Accepted incomplete rooms become ordinary draft
+`RoomInput` objects with missing values left at zero for editor completion.
+Every review row also carries an explicit source page. Extracted rooms are
+locked to their evidence page, while manually added rooms can select among the
+pages in the extraction scope; the converter no longer falls back silently to
+page 1.
+
+The app saves a versioned `plan-review/1.1` overlay containing selected evidence,
+human correction provenance, and immutable review events. The underlying
+`plan-evidence/2.0` result is not rewritten. It does not infer physical
+dimensions from room boxes, and it leaves unrelated heat-loss fields at normal
+draft defaults for completion in the existing editor.
+
+PDF region rendering now normalizes non-zero CropBox origins and transforms
+unrotated evidence bounds into the page's displayed rotation only at the raster
+boundary. Pixel-landmark regressions cover 0/90/180/270-degree pages, CropBox
+offsets, and page-edge clipping.
+
+The production A0 extraction code remains available as the frozen comparison
+baseline. V2 remains experimental until the fixed De Luca benchmark and a
+broader labeled evaluation set justify promotion.
+
+The application currently recommends Luna V2.5. V2.6 through V2.10 are
+selectable experiments. V2.8 preserved exact transcription, improved ownership
+rate and complete pairs, and reduced the De Luca run from 12 to 6 AI calls, but
+false confident assignments increased from 4 to 8. It therefore remains an
+experiment. Long-running Luna runs use backend job IDs and browser-session
+recovery so leaving and returning to the import route does not discard an
+in-progress or completed result.
+
+Luna V2.10 is a separate latency/safety experiment. It batches verification,
+uses bounded compact verifier responses, raises regional concurrency from three
+to four, and merges same-label room detections only when at least half of the
+smaller room box overlaps. Its locked De Luca run completed in 135.6 seconds
+with 7 calls, zero retries, zero false-confident assignments, and perfect
+benchmark abstention. It reduced output tokens and estimated cost, but complete
+correct L/W pairs fell to 1/13, so it is not the recommended pipeline. The
+review UI compensates safely by allowing a reviewer to select visible evidence
+to prefill an explicit human correction without promoting that evidence to an
+AI-approved mapping.
+
+The same V2.10 endpoint was also run against the exact user-uploaded De Luca
+PDF that previously took 332.2 seconds in V2.5. It completed in 129.9 seconds
+with 7 calls and no retries. False-confident assignments fell from 6 to 2, but
+exact transcription fell from 22/28 to 12/28 and complete correct pairs fell
+from 4/13 to 3/13. This confirms that the latency gain is repeatable and that
+V2.10 still cannot replace V2.5.
+
+Two follow-up orchestration experiments are implemented for benchmarking but
+are intentionally absent from the frontend:
+
+- V2.11 adds at most two concurrent medium-reasoning recovery groups after the
+  compact V2.10 verification pass. The locked run took 188.7 seconds and
+  recovered 4/13 complete pairs with 2 false-confident assignments.
+- V2.12 keeps seven total calls and reserves medium reasoning for final safety
+  adjudication. The locked run took 123.7 seconds with perfect ownership on its
+  accepted assignments and one false-confident assignment, but produced only
+  3/13 complete pairs.
+
+Neither candidate passes the quality gate. The next iteration should reduce
+the 79-86 atlas candidates before verification, then render small room-specific
+evidence panels containing the label and the best one or two candidates per
+axis. Escalation should be limited to rooms with missing or conflicting axes.
+The acceptance gate remains at least the frozen V2.5 result of 6/13 complete
+correct pairs without exceeding four false-confident assignments, while aiming
+for less than 180 seconds and no more than nine model calls per page.
+
+V2.13 implements the subsequent response-completeness experiment without a
+frontend route. It compares every compact-atlas response against the requested
+room and candidate IDs, suppresses premature omission warnings, and retries
+only missing IDs in at most two concurrent 35-candidate atlases. Any item still
+missing or outside the retry budget remains abstained.
+
+On the locked De Luca run, V2.13 returned 85/86 initial assessments and the
+retry recovered the remaining assessment. It reached 25/28 exact
+transcriptions, 20/20 correct ownership decisions, 5/13 complete pairs, one
+false-confident assignment, eight calls, and 183.6 seconds. The omitted item
+was an irrelevant Laundry Room 4-inch candidate, so the improvement over V2.12
+came from a more complete stochastic initial response rather than the retry.
+The sixth historical V2.5 pair failed because final adjudication misread Dining
+Room's correct 18'-8" width as a 5'-0 3/8" opening. V2.13 therefore remains
+benchmark-only: it missed the six-pair gate and exceeded the 180-second target
+by 3.6 seconds.
+
+V2.14 adds a bounded, transcription-free third read only when a supported,
+readable printed discovery relationship receives a machine-conflicted final
+adjudication. It reuses the exact adjudication evidence panels, accepts the
+candidate only when the new independent read reproduces the discovery value
+and supports room-span ownership, and caps the work at two 20-candidate
+atlases. Missing, failed, over-budget, or disagreeing reads remain abstained.
+
+The locked V2.14 run reached 25/28 exact transcriptions, 17/17 correct accepted
+ownership decisions, 4/13 complete pairs, one false-confident assignment,
+seven calls, $0.03650 estimated cost, and 170.5 seconds. No eligible
+machine-conflicted pair occurred, so the third-read branch correctly made no
+call. Provider variation gained Book Nook but lost Library and Bedroom 3
+relative to V2.13. Dining Room's correct discovery width was independently
+transcribed correctly but returned with unresolved ownership, which is an
+abstention outside the locked V2.14 trigger. V2.14 remains benchmark-only
+because it missed the six-pair quality gate.
+
+V2.15 narrows the third-read trigger to semantic disputes. A relationship is
+eligible only when readable discovery evidence supports a room span and final
+adjudication is conflicted or abstained while also disagreeing on ownership or
+span type. Pure transcription disagreements that still claim supported
+room-span ownership remain abstained for human review. This prevents the
+frozen Bedroom 2 11'-4" false assignment produced by V2.14's broad replay.
+
+The locked V2.15 stage replay selected only Dining Room. It independently read
+18'-8" correctly but returned unresolved ownership and an unknown span, so the
+deterministic gate kept it abstained. The result stayed at 5/13 complete pairs,
+20/20 accepted ownership, one false-confident assignment, and 3/4 correct
+abstentions while adding one call, 30.59 seconds, and $0.00249. V2.15 remains
+benchmark-only. Further repeated voting on this crop is not justified for the
+default pipeline; the unresolved relationship should cross the existing human
+review boundary with its source crop.
 
 ## Current Workflow
 

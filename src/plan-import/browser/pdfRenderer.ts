@@ -25,7 +25,7 @@ export async function renderPdfPage(
   const context = canvas.getContext("2d");
 
   if (!context) {
-    throw new Error("The browser could not create a canvas rendering context.");
+    throw new Error("Your browser couldn't prepare this PDF page for display. Try a different browser or device.");
   }
 
   canvas.width = Math.ceil(viewport.width);

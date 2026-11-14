@@ -103,7 +103,7 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
 
         {summary.ultraFinSpacing_mm && (
           <SummaryRow
-            label="Ultra-Fin Spacing (C-C)"
+            label="Ultra-Fin Spacing (center-to-center)"
             value={
               summary.ultraFinSpacing_mm === "VARIES"
                 ? "Varies by room"
@@ -117,7 +117,7 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
 
         {summary.tubingSpacing_mm && (
           <SummaryRow
-            label="Tubing Spacing (C-C)"
+            label="Tubing Spacing (center-to-center)"
             value={
               summary.tubingSpacing_mm === "VARIES"
                 ? "Varies by room"

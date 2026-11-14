@@ -1,5 +1,6 @@
 import { InstallMethod } from "../../models/projectTypes";
 import { ft_to_m } from "../../utils/conversions";
+import { getInstallMethodLabel } from "../../utils/formatProjectSummary";
 
 export function LayoutSVG({ method, length_m, width_m, spacing_in }: {
   method: InstallMethod; length_m: number; width_m: number; spacing_in: number;
@@ -65,7 +66,7 @@ export function LayoutSVG({ method, length_m, width_m, spacing_in }: {
       ))}
       {/* method label */}
       <text x={VB_W - 8} y={VB_H - 8} textAnchor="end" fontSize={10} fill="#475569">
-        {method.toUpperCase()} — {spacing_in}" ctrs
+        {getInstallMethodLabel(method)} — {spacing_in}" centers
       </text>
     </svg>
   );

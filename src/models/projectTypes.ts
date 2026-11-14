@@ -77,6 +77,88 @@ export interface ProjectSettings {
   // NEW additions
   glazing?: GlazingType;
   customU?: Partial<MaterialUValues>; // for new “customU” usage
+  planImport?: PlanImportProjectMetadata;
+  /**
+   * Additional plan-import runs appended to an EXISTING project after creation
+   * (see plan-import/pipeline AppendPlanImportPage). `planImport` above always
+   * stays the run that originally created the project (if any) and is never
+   * touched by later appends - this array is purely additive history.
+   */
+  planImportHistory?: PlanImportProjectMetadata[];
+}
+
+export interface PlanImportProjectMetadata {
+  source: "browser" | "backend";
+  provider: string;
+  fileName: string;
+  importedAt: number;
+  warnings: string[];
+  rooms: PlanImportRoomMetadata[];
+  v2Review?: PlanImportV2ReviewMetadata;
+}
+
+export interface PlanImportV2SelectedDimension {
+  kind: "evidence" | "human_correction";
+  origin: "printed" | "user_entered";
+  associationId: string | null;
+  dimensionId: string | null;
+  rawText: string;
+  meters: number;
+  evidenceIds: string[];
+}
+
+export interface PlanImportV2RoomReviewMetadata {
+  roomId: string;
+  sourceRoomId: string | null;
+  sourcePageNumber: number;
+  decision: "pending" | "accepted" | "excluded";
+  reviewedName: string;
+  duplicateOfRoomId: string | null;
+  length: PlanImportV2SelectedDimension | null;
+  width: PlanImportV2SelectedDimension | null;
+  evidenceIds: string[];
+  reviewReasons: string[];
+}
+
+export interface PlanImportV2ReviewMetadata {
+  schemaVersion: "plan-review/1.1";
+  evidenceSchemaVersion: string;
+  pipelineVersion: string;
+  runId: string;
+  documentId: string;
+  reviewedAt: number;
+  reviewerId: string | null;
+  rooms: PlanImportV2RoomReviewMetadata[];
+  events: PlanImportV2ReviewEvent[];
+}
+
+export interface PlanImportV2ReviewEvent {
+  eventId: string;
+  reviewedAt: number;
+  reviewRoomId: string;
+  sourceRoomId: string | null;
+  field: "room" | "name" | "length" | "width";
+  action: "added" | "corrected" | "left_missing" | "excluded" | "marked_duplicate";
+  originalValue: string | null;
+  reviewedValue: string | null;
+  provenance: "human_review";
+  evidenceIds: string[];
+}
+
+export interface PlanImportRoomMetadata {
+  roomInputId: string;
+  sourceRoomId: string;
+  pageNumber: number;
+  roomName: string;
+  confidence: number;
+  status: string;
+  reviewStatus: string;
+  evidence: string[];
+  reviewReasons: string[];
+  cropDataUrl: string | null;
+  cropDataUrlOmittedReason?: string;
+  /** Only set for rooms imported via an append-to-existing-project run. */
+  appendDecision?: "added" | "replaced" | "skipped";
 }
 
 // === Region Defaults (from new) ===

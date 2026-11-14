@@ -1068,7 +1068,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
                 {ultra.selection.ultraFinSpacing_mm && (
                   <>
                     <div className="text-slate-600 mb-2">
-                      Ultra-Fin Spacing (C-C)
+                      Ultra-Fin Spacing (center-to-center)
                     </div>
                     <div className="text-right font-semibold">
                       {formatSpacing(
@@ -1082,7 +1082,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
                 {ultra.selection.tubingSpacing_mm && (
                   <>
                     <div className="text-slate-600 mb-2">
-                      Tubing Spacing (C-C)
+                      Tubing Spacing (center-to-center)
                     </div>
                     <div className="text-right font-semibold">
                       {formatSpacing(
@@ -1095,7 +1095,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
                 {ultra.selection.spacingDisplayText && (
                   <>
                     <div className="text-slate-600 mb-2">
-                      Tubing Spacing (C-C)
+                      Tubing Spacing (center-to-center)
                     </div>
                     <div className="text-right font-semibold">
                       {ultra.selection.spacingDisplayText}

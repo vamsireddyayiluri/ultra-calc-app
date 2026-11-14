@@ -2,6 +2,7 @@ import { BrowserRouter } from "react-router-dom";
 import AppRoutes from "./routes/AppRoutes";
 import { AuthProvider } from "./contexts/AuthProvider";
 import { SnackbarProvider } from "./contexts/SnackbarProvider";
+import { ChatWidget } from "./components/chat/ChatWidget";
 
 function App() {
   return (
@@ -9,6 +10,7 @@ function App() {
       <AuthProvider>
         <SnackbarProvider>
           <AppRoutes />
+          <ChatWidget />
         </SnackbarProvider>
       </AuthProvider>
     </BrowserRouter>

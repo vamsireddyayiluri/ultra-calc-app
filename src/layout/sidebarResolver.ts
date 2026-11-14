@@ -62,6 +62,6 @@ export function resolveSidebarAssets(
       };
 
     default:
-      throw new Error("Unsupported install method");
+      throw new Error("This installation method doesn't have a layout diagram yet.");
   }
 }
