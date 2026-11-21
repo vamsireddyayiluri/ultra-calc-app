@@ -9,8 +9,10 @@ import {
   recordV2ReviewMetric,
   startLunaExtractionJob,
   validateV2Review,
+  ExperimentalV2Error,
   type V2ExtractionResult,
   type V2PartialEvidenceSnapshot,
+  type V2ProjectMetadataExtraction,
   type V2RoomInstance,
   type ExperimentalV2Pipeline,
 } from "../../plan-import/api/experimentalV2Client";
@@ -20,19 +22,30 @@ import {
   type PreparedV2ReviewedImport,
   type V2RoomReviewSelection,
 } from "../../plan-import/pipeline/convertV2ReviewToRoomInput";
-import RoomEvidenceReviewCard from "./RoomEvidenceReviewCard";
+import {
+  EMPTY_PROJECT_METADATA_DRAFT,
+  seedProjectMetadataDraft,
+  type ProjectMetadataDraft,
+} from "../../plan-import/pipeline/projectMetadataDraft";
+import RoomReviewWorkbench, { axisDisplayValue } from "./RoomReviewWorkbench";
 import ReadyRoomRow from "./ReadyRoomRow";
-import { eligibleV2Associations } from "../../plan-import/pipeline/v2Eligibility";
+import ProjectMetadataReviewCard from "./ProjectMetadataReviewCard";
+import { eligibleV2Associations, isEligibleV2Association } from "../../plan-import/pipeline/v2Eligibility";
 import { auth } from "../../firebase";
 import { ConfirmDialog } from "../layout/ConfirmDialog";
+import type { Region } from "../../models/projectTypes";
 
 interface ExperimentalV2PanelProps {
   file: File | null;
   pageCount: number | null;
   backendUrl: string;
   isCreatingProject: boolean;
-  onCreateDraftProject: (prepared: PreparedV2ReviewedImport) => Promise<void>;
+  onCreateDraftProject: (prepared: PreparedV2ReviewedImport, projectMetadata: ProjectMetadataDraft) => Promise<void>;
   debugMode?: boolean;
+  // The existing project's region, when appending to an already-created
+  // project (AppendPlanImportPage) - takes priority over the Phase A
+  // suggested/confirmed region draft used during new-project import.
+  knownRegion?: Region;
 }
 
 type RunStatus = "idle" | "running" | "complete" | "error" | "cancelled";
@@ -48,7 +61,7 @@ function ownedStorageKey(base: string): string {
 }
 
 interface PersistedV2Session {
-  version: 4;
+  version: 5;
   ownerUid: string | null;
   savedAt: string;
   fileFingerprint: string | null;
@@ -62,10 +75,11 @@ interface PersistedV2Session {
   reviewRevision?: number;
   reviewSyncPending?: boolean;
   activeReviewMs?: number;
+  projectMetadataDraft?: ProjectMetadataDraft;
 }
 
 interface PersistedV2Job {
-  version: 2;
+  version: 3;
   ownerUid: string | null;
   jobId: string;
   backendUrl: string;
@@ -74,6 +88,17 @@ interface PersistedV2Job {
   startedAt: string;
   statusUrl: string;
   pipeline: "v24-luna" | "v25-luna" | "v26-luna" | "v27-luna" | "v28-luna" | "v29-luna" | "v210-luna";
+  // Room reviews build up as incremental extraction snapshots stream in, and
+  // the reviewer can edit/accept/reject them in the workbench while the scan
+  // is still "running" (see activeWorkbenchResult = result ?? incrementalResult
+  // below) - persist those in-progress edits against this jobId too, not just
+  // the completed-run session backup, so refreshing mid-scan doesn't silently
+  // discard them once polling resumes and re-seeds only the missing rooms.
+  roomReviews?: Record<string, V2RoomReviewSelection>;
+  projectMetadataDraft?: ProjectMetadataDraft;
+  correctionKeys?: string[];
+  reviewSessionId?: string;
+  reviewStartedAt?: string;
 }
 
 function newReviewSessionId(): string {
@@ -93,7 +118,7 @@ function readPersistedV2Session(): PersistedV2Session | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<PersistedV2Session>;
     if (parsed.ownerUid !== (auth.currentUser?.uid ?? null)) return null;
-    if (parsed.version !== 4 || !parsed.result || !parsed.pipeline || !parsed.roomReviews) return null;
+    if (parsed.version !== 5 || !parsed.result || !parsed.pipeline || !parsed.roomReviews) return null;
     return parsed as PersistedV2Session;
   } catch {
     return null;
@@ -103,6 +128,62 @@ function readPersistedV2Session(): PersistedV2Session | null {
 function clearPersistedV2Session() {
   if (typeof window === "undefined") return;
   window.sessionStorage.removeItem(ownedStorageKey(V2_SESSION_STORAGE_KEY));
+}
+
+function buildRoomReview(
+  extracted: V2ExtractionResult,
+  room: V2RoomInstance,
+): V2RoomReviewSelection {
+  const observations = new Map(
+    extracted.text_observations.map((observation) => [observation.observation_id, observation]),
+  );
+  const lengths = eligibleV2Associations(extracted, room.room_id, "length");
+  const widths = eligibleV2Associations(extracted, room.room_id, "width");
+  const sourcePageNumber = extracted.pages.find((page) => page.page_id === room.page_id)?.source_page_number;
+  if (!sourcePageNumber) throw new Error(`Room ${room.room_id} does not belong to an extracted source page.`);
+  return {
+    reviewRoomId: room.room_id,
+    sourceRoomId: room.room_id,
+    sourcePageNumber,
+    decision: "pending",
+    name: room.label_observation_ids.map((id) => observations.get(id)?.raw_text).filter(Boolean).join(" / "),
+    duplicateOfReviewRoomId: "",
+    length: {
+      kind: lengths.length === 1 ? "evidence" : "missing",
+      associationId: lengths.length === 1 ? lengths[0].association_id : "",
+      rawText: "",
+      sourceAssociationId: "",
+    },
+    width: {
+      kind: widths.length === 1 ? "evidence" : "missing",
+      associationId: widths.length === 1 ? widths[0].association_id : "",
+      rawText: "",
+      sourceAssociationId: "",
+    },
+  };
+}
+
+function reconcileCompletedReview(
+  extracted: V2ExtractionResult,
+  review: V2RoomReviewSelection,
+): V2RoomReviewSelection {
+  const reconcileAxis = (axis: "length" | "width", selection: V2RoomReviewSelection[typeof axis]) => {
+    if (selection.kind !== "evidence" || !review.sourceRoomId) return selection;
+    if (isEligibleV2Association(extracted, review.sourceRoomId, axis, selection.associationId)) return selection;
+    const association = extracted.associations.find((item) => item.association_id === selection.associationId);
+    const rawText = association
+      ? extracted.dimensions.find((item) => item.dimension_id === association.dimension_id)?.raw_text?.trim()
+      : "";
+    return rawText
+      ? { kind: "human_correction" as const, associationId: "", rawText, sourceAssociationId: selection.associationId }
+      : { kind: "missing" as const, associationId: "", rawText: "", sourceAssociationId: "" };
+  };
+  return {
+    ...review,
+    decision: review.decision === "accepted" && !review.name.trim() ? "pending" : review.decision,
+    length: reconcileAxis("length", review.length),
+    width: reconcileAxis("width", review.width),
+  };
 }
 
 function readPersistedV2Job(): PersistedV2Job | null {
@@ -118,7 +199,7 @@ function readPersistedV2Job(): PersistedV2Job | null {
     }
     return {
       ...parsed,
-      version: 2,
+      version: 3,
       statusUrl: parsed.statusUrl ?? `/api/experimental/v2/plans/jobs/${encodeURIComponent(parsed.jobId)}`,
     } as PersistedV2Job;
   } catch {
@@ -178,6 +259,26 @@ function isClearlyDetectedRoom(review: V2RoomReviewSelection, sourceRoom: V2Room
   return lengthReady && widthReady;
 }
 
+type HvacBucket = "conditioned" | "auxiliary" | "nonHvac";
+
+// Groups the backend's deterministic space_category (plan-evidence/2.0 contract) into the
+// three HVAC-relevant triage buckets, so unconditioned structural/exterior noise (crawl
+// spaces, mechanical rooms, porches) and quick-triage storage/circulation spaces stop
+// competing for attention with real conditioned rooms in the main review workbench.
+function hvacBucketFor(sourceRoom: V2RoomInstance | null): HvacBucket {
+  switch (sourceRoom?.space_category) {
+    case "storage":
+    case "circulation":
+      return "auxiliary";
+    case "service":
+    case "exterior":
+    case "annotation":
+      return "nonHvac";
+    default:
+      return "conditioned";
+  }
+}
+
 function downloadJson(result: V2ExtractionResult) {
   const blob = new Blob([JSON.stringify(result, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -222,6 +323,7 @@ export default function ExperimentalV2Panel({
   isCreatingProject,
   onCreateDraftProject,
   debugMode = false,
+  knownRegion,
 }: ExperimentalV2PanelProps) {
   const [restoredSession] = useState<PersistedV2Session | null>(readPersistedV2Session);
   const [restoredJob] = useState<PersistedV2Job | null>(readPersistedV2Job);
@@ -240,19 +342,29 @@ export default function ExperimentalV2Panel({
   const [result, setResult] = useState<V2ExtractionResult | null>(restoredSession?.result ?? null);
   const [error, setError] = useState<string | null>(null);
   const [roomReviews, setRoomReviews] = useState<Record<string, V2RoomReviewSelection>>(
-    restoredSession?.roomReviews ?? {},
+    restoredSession?.roomReviews ?? restoredJob?.roomReviews ?? {},
   );
   const [reviewActionError, setReviewActionError] = useState<string | null>(null);
   const [jobProgress, setJobProgress] = useState({ stage: "queued", progress: 0 });
-  // Incremental preview of rooms found so far (Part 1 progressive streaming) -
-  // deliberately never merged into roomReviews: PartialRoomSummary omits
-  // evidence images/dimension associations, so it can only back a lightweight
-  // preview chip, not a real, editable RoomEvidenceReviewCard. Cleared once
-  // the final result lands (applyExtractionResult takes over from there).
+  // The summary remains useful before the first crop batch. Once review_result
+  // arrives, it drives the same editable workbench used by the completed run.
   const [partialSnapshot, setPartialSnapshot] = useState<V2PartialEvidenceSnapshot | null>(null);
-  const [reviewSessionId, setReviewSessionId] = useState(restoredSession?.reviewSessionId ?? newReviewSessionId);
-  const [reviewStartedAt, setReviewStartedAt] = useState(restoredSession?.reviewStartedAt ?? new Date().toISOString());
-  const [correctionKeys, setCorrectionKeys] = useState<string[]>(restoredSession?.correctionKeys ?? []);
+  const [incrementalResult, setIncrementalResult] = useState<V2ExtractionResult | null>(null);
+  const [projectMetadataDraft, setProjectMetadataDraft] = useState<ProjectMetadataDraft>(
+    restoredSession?.projectMetadataDraft ?? restoredJob?.projectMetadataDraft ?? EMPTY_PROJECT_METADATA_DRAFT,
+  );
+  const [touchedProjectMetadataFields, setTouchedProjectMetadataFields] = useState<Set<keyof ProjectMetadataDraft>>(
+    new Set(),
+  );
+  const [reviewSessionId, setReviewSessionId] = useState(
+    restoredSession?.reviewSessionId ?? restoredJob?.reviewSessionId ?? newReviewSessionId,
+  );
+  const [reviewStartedAt, setReviewStartedAt] = useState(
+    restoredSession?.reviewStartedAt ?? restoredJob?.reviewStartedAt ?? new Date().toISOString(),
+  );
+  const [correctionKeys, setCorrectionKeys] = useState<string[]>(
+    restoredSession?.correctionKeys ?? restoredJob?.correctionKeys ?? [],
+  );
   const [reviewCompletedMetricSent, setReviewCompletedMetricSent] = useState(
     restoredSession?.reviewCompletedMetricSent ?? false,
   );
@@ -262,6 +374,9 @@ export default function ExperimentalV2Panel({
   const [reloadReview, setReloadReview] = useState(0);
   const [reviewSaveStatus, setReviewSaveStatus] = useState("");
   const [attentionOverrideIds, setAttentionOverrideIds] = useState<Set<string>>(new Set());
+  // Rooms the reviewer explicitly asked to see in the main conditioned workbench despite
+  // their auto-detected HVAC bucket (e.g. "Review in detail" on a storage/non-HVAC row).
+  const [bucketOverrideIds, setBucketOverrideIds] = useState<Set<string>>(new Set());
   const [showBackConfirm, setShowBackConfirm] = useState(false);
   const reviewRevision = useRef(0);
   const reviewSaveQueue = useRef<Promise<void>>(Promise.resolve());
@@ -276,6 +391,7 @@ export default function ExperimentalV2Panel({
     reviewGeneration.current += 1;
     setActiveJob(null);
     setResult(null);
+    setIncrementalResult(null);
     setRoomReviews({});
     setStatus("idle");
     setReviewSyncEnabled(false);
@@ -307,6 +423,15 @@ export default function ExperimentalV2Panel({
         setReviewStartedAt(saved.draft.review_started_at);
         setCorrectionKeys(saved.draft.correction_keys);
         activeReviewMs.current = saved.draft.active_review_ms;
+        if (saved.draft.project_metadata_draft) {
+          const restoredMetadata = saved.draft.project_metadata_draft;
+          setProjectMetadataDraft(restoredMetadata);
+          // Every restored field was an explicit prior human edit/confirmation -
+          // never let a later-streaming page's extraction silently overwrite it.
+          setTouchedProjectMetadataFields(
+            (current) => new Set([...current, ...(Object.keys(restoredMetadata) as Array<keyof ProjectMetadataDraft>)]),
+          );
+        }
       }
       setReviewReady(true);
       setReviewSyncEnabled(true);
@@ -359,6 +484,7 @@ export default function ExperimentalV2Panel({
             schema_version: "plan-review-session/1.0", run_id: result.run.run_id,
             room_reviews: roomReviews, review_session_id: reviewSessionId, review_started_at: reviewStartedAt,
             correction_keys: correctionKeys, active_review_ms: Math.round(activeReviewMs.current),
+            project_metadata_draft: projectMetadataDraft,
           });
           // Advance revision even if another edit queued during this request.
           if (generation !== reviewGeneration.current) return;
@@ -373,7 +499,7 @@ export default function ExperimentalV2Panel({
       });
     }, 600);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [backendUrl, result, reviewReady, reviewSyncEnabled, roomReviews, reviewSessionId, reviewStartedAt, correctionKeys]);
+  }, [backendUrl, result, reviewReady, reviewSyncEnabled, roomReviews, reviewSessionId, reviewStartedAt, correctionKeys, projectMetadataDraft]);
 
   useEffect(() => {
     if (!file) return;
@@ -384,6 +510,7 @@ export default function ExperimentalV2Panel({
     setActiveJob(null);
     setStatus("idle");
     setResult(null);
+    setIncrementalResult(null);
     setError(null);
     setReviewActionError(null);
     setRoomReviews({});
@@ -391,13 +518,23 @@ export default function ExperimentalV2Panel({
     setCorrectionKeys([]);
     setReviewCompletedMetricSent(false);
     setPageNumber(1);
+    // Also clear the previous file's partial snapshot - latestProjectMetadata
+    // below falls back to partialSnapshot.project_metadata, so leaving it set
+    // would silently re-seed the draft we're about to clear with stale data.
+    setPartialSnapshot(null);
+    // A replacement PDF must never inherit the previous file's address,
+    // region, temperatures, heating system, etc. - reset both the draft
+    // values and which fields the reviewer already touched, scoped to this
+    // new file's identity (fileFingerprint), not just cleared once up front.
+    setProjectMetadataDraft(EMPTY_PROJECT_METADATA_DRAFT);
+    setTouchedProjectMetadataFields(new Set());
   }, [file, restoredJob, restoredSession]);
 
   useEffect(() => {
     if (!result || typeof window === "undefined") return;
     const timeoutId = window.setTimeout(() => {
       const session: PersistedV2Session = {
-        version: 4,
+        version: 5,
         ownerUid: sessionOwner.current,
         savedAt: new Date().toISOString(),
         fileFingerprint: file ? fileFingerprint(file) : restoredSession?.fileFingerprint ?? null,
@@ -411,6 +548,7 @@ export default function ExperimentalV2Panel({
         reviewRevision: reviewRevision.current,
         reviewSyncPending: reviewSyncPending.current,
         activeReviewMs: activeReviewMs.current,
+        projectMetadataDraft,
       };
       try {
         if (session.ownerUid !== (auth.currentUser?.uid ?? null)) return;
@@ -420,7 +558,30 @@ export default function ExperimentalV2Panel({
       }
     }, 250);
     return () => window.clearTimeout(timeoutId);
-  }, [correctionKeys, file, pipeline, result, restoredSession, reviewCompletedMetricSent, reviewSessionId, reviewStartedAt, roomReviews, reviewSaveStatus]);
+  }, [correctionKeys, file, pipeline, result, restoredSession, reviewCompletedMetricSent, reviewSessionId, reviewStartedAt, roomReviews, reviewSaveStatus, projectMetadataDraft]);
+
+  // Mirror of the backup effect above, but for the "still running" phase:
+  // incremental snapshots seed roomReviews (see activeWorkbenchResult below)
+  // and the reviewer can start editing/accepting rooms and filling in the
+  // metadata draft before the scan itself finishes - without this, those
+  // edits only live in React state, so a page refresh mid-scan resumed the
+  // same jobId's polling but silently lost every edit made so far.
+  useEffect(() => {
+    if (!activeJob || typeof window === "undefined") return;
+    const timeoutId = window.setTimeout(() => {
+      if (activeJob.ownerUid !== (auth.currentUser?.uid ?? null)) return;
+      writePersistedV2Job({
+        ...activeJob,
+        roomReviews,
+        projectMetadataDraft,
+        correctionKeys,
+        reviewSessionId,
+        reviewStartedAt,
+      });
+    }, 250);
+    return () => window.clearTimeout(timeoutId);
+  }, [activeJob, roomReviews, projectMetadataDraft, correctionKeys, reviewSessionId, reviewStartedAt]);
+
 
   const applyExtractionResult = useCallback((extracted: V2ExtractionResult) => {
     if (restoredSession?.result.run.run_id === extracted.run.run_id) {
@@ -433,35 +594,31 @@ export default function ExperimentalV2Panel({
     const sessionId = newReviewSessionId();
     setResult(extracted);
     setAttentionOverrideIds(new Set());
-    const observations = new Map(
-      extracted.text_observations.map((observation) => [observation.observation_id, observation]),
-    );
-    setRoomReviews(Object.fromEntries(extracted.rooms.map((room) => {
-      const lengths = eligibleV2Associations(extracted, room.room_id, "length");
-      const widths = eligibleV2Associations(extracted, room.room_id, "width");
-      const sourcePageNumber = extracted.pages.find((page) => page.page_id === room.page_id)?.source_page_number;
-      if (!sourcePageNumber) throw new Error(`Room ${room.room_id} does not belong to an extracted source page.`);
-      return [room.room_id, {
-        reviewRoomId: room.room_id,
-        sourceRoomId: room.room_id,
-        sourcePageNumber,
-        decision: "pending" as const,
-        name: room.label_observation_ids.map((id) => observations.get(id)?.raw_text).filter(Boolean).join(" / "),
-        duplicateOfReviewRoomId: "",
-        length: {
-          kind: lengths.length === 1 ? "evidence" as const : "missing" as const,
-          associationId: lengths.length === 1 ? lengths[0].association_id : "",
-          rawText: "",
-          sourceAssociationId: "",
-        },
-        width: {
-          kind: widths.length === 1 ? "evidence" as const : "missing" as const,
-          associationId: widths.length === 1 ? widths[0].association_id : "",
-          rawText: "",
-          sourceAssociationId: "",
-        },
-      }];
-    })));
+    setRoomReviews((current) => {
+      // Cross-page reconciliation can merge/rename a room id that existed
+      // while this job was still streaming (see reconciliation.py's
+      // room_id_map, surfaced here as room_id_aliases) - without this, any
+      // edit/decision made on that room's review while the job was RUNNING
+      // would silently vanish the moment the final, reconciled result
+      // arrives, since `current[room.room_id]` alone would no longer find it.
+      const aliases = extracted.room_id_aliases ?? {};
+      const oldIdsByFinalId = new Map<string, string[]>();
+      for (const [oldId, finalId] of Object.entries(aliases)) {
+        if (oldId === finalId) continue;
+        const bucket = oldIdsByFinalId.get(finalId);
+        if (bucket) bucket.push(oldId);
+        else oldIdsByFinalId.set(finalId, [oldId]);
+      }
+      return Object.fromEntries(extracted.rooms.map((room) => {
+        const migratedFrom = oldIdsByFinalId.get(room.room_id)?.map((oldId) => current[oldId]).find(Boolean);
+        const existing = current[room.room_id] ?? migratedFrom;
+        return [
+          room.room_id,
+          existing ? reconcileCompletedReview(extracted, existing) : buildRoomReview(extracted, room),
+        ];
+      }));
+    });
+    setIncrementalResult(null);
     setError(null);
     setStatus("complete");
     setReviewSessionId(sessionId);
@@ -504,7 +661,18 @@ export default function ExperimentalV2Panel({
         const job = await getLunaExtractionJob(activeJob.backendUrl, activeJob.jobId);
         if (cancelled) return;
         setJobProgress({ stage: job.stage, progress: job.progress });
-        setPartialSnapshot(job.partial_snapshot ?? null);
+        const snapshot = job.partial_snapshot ?? null;
+        setPartialSnapshot(snapshot);
+        if (snapshot?.review_result) {
+          setIncrementalResult(snapshot.review_result);
+          setRoomReviews((current) => {
+            const next = { ...current };
+            for (const room of snapshot.review_result!.rooms) {
+              next[room.room_id] ??= buildRoomReview(snapshot.review_result!, room);
+            }
+            return next;
+          });
+        }
         if (job.status === "succeeded" && job.result) {
           setActiveJob(null);
           setPartialSnapshot(null);
@@ -533,7 +701,12 @@ export default function ExperimentalV2Panel({
         const message = pollError instanceof Error
           ? pollError.message
           : "We couldn't check the status of this scan.";
-        if (message.includes("(404)")) {
+        // errorFromResponse() always returns a generic, user-facing message
+        // (never embeds the status code in the text), so checking .status
+        // directly is required here - the previous message.includes("(404)")
+        // check could never match anything and this branch never ran,
+        // leaving an expired/already-gone job polling (and failing) forever.
+        if (pollError instanceof ExperimentalV2Error && pollError.status === 404) {
           clearPersistedV2Job();
           setActiveJob(null);
           setStatus("error");
@@ -574,6 +747,7 @@ export default function ExperimentalV2Panel({
     setResult(null);
     setJobProgress({ stage: "queued", progress: 0 });
     setPartialSnapshot(null);
+    setIncrementalResult(null);
     try {
       const extractionOptions = {
         ...(scope === "selected" ? { page_numbers: [pageNumber] } : {}),
@@ -582,7 +756,7 @@ export default function ExperimentalV2Panel({
       if (pipeline === "v24-luna" || pipeline === "v25-luna" || pipeline === "v26-luna" || pipeline === "v27-luna" || pipeline === "v28-luna" || pipeline === "v29-luna" || pipeline === "v210-luna") {
         const started = await startLunaExtractionJob(file, backendUrl, extractionOptions, pipeline);
         const persistedJob: PersistedV2Job = {
-          version: 2,
+          version: 3,
           ownerUid: sessionOwner.current,
           jobId: started.job_id,
           backendUrl,
@@ -668,8 +842,49 @@ export default function ExperimentalV2Panel({
     [result],
   );
 
-  const { attentionReviews, readyReviews, decidedReviews } = useMemo(() => {
+  // The single long-lived review workbench below reads from whichever
+  // result is currently authoritative - the final reconciled `result` once
+  // the job completes, or the still-streaming `incrementalResult` while it's
+  // running - instead of two separate workbench mounts (one per status),
+  // which used to unmount+remount the component across that transition and
+  // lose its zoom/pan, active room selection and undo history.
+  const activeWorkbenchResult = result ?? incrementalResult;
+  const activeWorkbenchRoomById = result
+    ? roomById
+    : new Map((incrementalResult?.rooms ?? []).map((room) => [room.room_id, room]));
+
+  // Project metadata streams independently of room batches - prefer the most
+  // authoritative source available (final result > in-progress review graph
+  // > lightweight partial snapshot).
+  const latestProjectMetadata: V2ProjectMetadataExtraction | null =
+    result?.project_metadata ?? incrementalResult?.project_metadata ?? partialSnapshot?.project_metadata ?? null;
+
+  const effectiveRegion: Region | undefined = knownRegion ?? (projectMetadataDraft.region || undefined);
+
+  useEffect(() => {
+    setProjectMetadataDraft((current) =>
+      seedProjectMetadataDraft(current, touchedProjectMetadataFields, latestProjectMetadata),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestProjectMetadata]);
+
+  const updateProjectMetadataDraft = (patch: Partial<ProjectMetadataDraft>) => {
+    setProjectMetadataDraft((current) => ({ ...current, ...patch }));
+    setTouchedProjectMetadataFields((current) => new Set([...current, ...(Object.keys(patch) as Array<keyof ProjectMetadataDraft>)]));
+  };
+
+  const {
+    attentionReviews,
+    conditionedAttention,
+    auxiliaryAttention,
+    nonHvacAttention,
+    readyReviews,
+    decidedReviews,
+  } = useMemo(() => {
     const attention: V2RoomReviewSelection[] = [];
+    const conditioned: V2RoomReviewSelection[] = [];
+    const auxiliary: V2RoomReviewSelection[] = [];
+    const nonHvac: V2RoomReviewSelection[] = [];
     const ready: V2RoomReviewSelection[] = [];
     const decided: V2RoomReviewSelection[] = [];
     for (const review of Object.values(roomReviews)) {
@@ -680,12 +895,37 @@ export default function ExperimentalV2Panel({
       const sourceRoom = review.sourceRoomId ? roomById.get(review.sourceRoomId) ?? null : null;
       if (!attentionOverrideIds.has(review.reviewRoomId) && isClearlyDetectedRoom(review, sourceRoom)) {
         ready.push(review);
-      } else {
-        attention.push(review);
+        continue;
       }
+      attention.push(review);
+      const bucket = bucketOverrideIds.has(review.reviewRoomId) ? "conditioned" : hvacBucketFor(sourceRoom);
+      if (bucket === "auxiliary") auxiliary.push(review);
+      else if (bucket === "nonHvac") nonHvac.push(review);
+      else conditioned.push(review);
     }
-    return { attentionReviews: attention, readyReviews: ready, decidedReviews: decided };
-  }, [roomReviews, roomById, attentionOverrideIds]);
+    return {
+      attentionReviews: attention,
+      conditionedAttention: conditioned,
+      auxiliaryAttention: auxiliary,
+      nonHvacAttention: nonHvac,
+      readyReviews: ready,
+      decidedReviews: decided,
+    };
+  }, [roomReviews, roomById, attentionOverrideIds, bucketOverrideIds]);
+
+  // Shared bulk action for the auxiliary/non-HVAC drawers - excludes every room currently
+  // in that bucket in one click instead of 15-25 separate clicks.
+  const excludeAll = (reviews: V2RoomReviewSelection[]) => {
+    if (reviews.length === 0) return;
+    setReviewActionError(null);
+    setRoomReviews((current) => {
+      const next = { ...current };
+      for (const review of reviews) {
+        next[review.reviewRoomId] = { ...current[review.reviewRoomId], decision: "excluded" };
+      }
+      return next;
+    });
+  };
 
   const acceptAllReady = () => {
     if (readyReviews.length === 0) return;
@@ -703,13 +943,21 @@ export default function ExperimentalV2Panel({
     if (!result) throw new Error("Run a scan before preparing your review.");
     const token = result.run.artifact_access_token;
     if (!token) throw new Error("This result can no longer be validated. Please run the scan again.");
+    // Also normalize restored/HMR-preserved drafts created before the
+    // workbench distinguished eligible evidence from nearby suggestions.
+    const reconciledReviews = Object.fromEntries(
+      Object.entries(roomReviews).map(([roomId, review]) => [
+        roomId, reconcileCompletedReview(result, review),
+      ]),
+    );
+    setRoomReviews(reconciledReviews);
     const validation = await validateV2Review(
       backendUrl,
       token,
       result.run.run_id,
-      buildV2ReviewDraftRooms(roomReviews),
+      buildV2ReviewDraftRooms(reconciledReviews),
     );
-    return prepareV2ReviewedImport(result, validation);
+    return prepareV2ReviewedImport(result, validation, reconciledReviews);
   };
 
   const reportReviewCompleted = async () => {
@@ -753,7 +1001,7 @@ export default function ExperimentalV2Panel({
       if (prepared.convertedRooms.length === 0) {
         throw new Error("Accept at least one reviewed room before creating a project.");
       }
-      await onCreateDraftProject(prepared);
+      await onCreateDraftProject(prepared, projectMetadataDraft);
       await reportReviewCompleted();
     } catch (reviewError) {
       setReviewActionError(reviewError instanceof Error ? reviewError.message : "We couldn't create a project from this review. Please try again.");
@@ -771,6 +1019,17 @@ export default function ExperimentalV2Panel({
       setActiveJob(null);
       setStatus("cancelled");
     } catch (cancelError) {
+      // A 404 here means the job is already gone server-side (expired or
+      // otherwise unrecoverable) - from the user's perspective there's
+      // nothing left to stop, so "Cancel & go back" must still take them
+      // back to the upload view instead of silently failing and leaving
+      // them stuck on the in-progress screen with no way out.
+      if (cancelError instanceof ExperimentalV2Error && cancelError.status === 404) {
+        clearPersistedV2Job();
+        setActiveJob(null);
+        setStatus("cancelled");
+        return;
+      }
       setError(cancelError instanceof Error ? cancelError.message : "We couldn't cancel the scan. Please try again.");
     } finally {
       cancellationInFlight.current = false;
@@ -793,6 +1052,7 @@ export default function ExperimentalV2Panel({
     setReviewCompletedMetricSent(false);
     setAttentionOverrideIds(new Set());
     setPartialSnapshot(null);
+    setIncrementalResult(null);
   };
 
   const hasUnsavedReviewProgress = acceptedRoomCount > 0 || excludedRoomCount > 0 || correctionKeys.length > 0;
@@ -961,7 +1221,7 @@ export default function ExperimentalV2Panel({
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-violet-100" aria-hidden="true">
             <div className="h-full rounded-full bg-violet-600 transition-[width] duration-300" style={{ width: `${Math.max(2, jobProgress.progress * 100)}%` }} />
           </div>
-          {partialSnapshot && partialSnapshot.rooms.length > 0 ? (
+          {partialSnapshot && partialSnapshot.rooms.length > 0 && !incrementalResult ? (
             <div className="mt-3 rounded-lg border border-violet-100 bg-violet-50/60 p-2.5">
               <p className="text-xs font-semibold text-violet-900">
                 Rooms found so far ({partialSnapshot.rooms.length})
@@ -988,9 +1248,7 @@ export default function ExperimentalV2Panel({
                 <li className="h-6 w-20 shrink-0 animate-pulse rounded-full bg-violet-100" aria-hidden="true" />
                 <li className="h-6 w-16 shrink-0 animate-pulse rounded-full bg-violet-100" aria-hidden="true" />
               </ul>
-              <p className="mt-2 text-[11px] text-violet-700">
-                Full details (measurements and plan images) become available for review once the scan finishes.
-              </p>
+              <p className="mt-2 text-[11px] text-violet-700">Preparing the first interactive review batch...</p>
             </div>
           ) : null}
           {pollTimedOut ? (
@@ -1025,6 +1283,46 @@ export default function ExperimentalV2Panel({
                 : "Processing time can vary."}
             </p>
           )}
+        </div>
+      )}
+
+      {(status === "running" || status === "complete") && (
+        <ProjectMetadataReviewCard
+          metadata={latestProjectMetadata}
+          draft={projectMetadataDraft}
+          status={status === "complete" ? "complete" : "running"}
+          onChange={updateProjectMetadataDraft}
+        />
+      )}
+
+      {activeWorkbenchResult && (
+        <div className="mt-4">
+          {result && conditionedAttention.length > 0 && (
+            <>
+              <h4 className="text-sm font-semibold text-slate-900">Needs your attention</h4>
+              <p className="mt-1 text-xs text-slate-500">
+                Missing a clear measurement, flagged for a decision, or added manually - review each one, then confirm, skip, or exclude it.
+              </p>
+            </>
+          )}
+          <div className="mt-3">
+            <RoomReviewWorkbench
+              result={activeWorkbenchResult}
+              reviews={result ? conditionedAttention : Object.values(roomReviews)}
+              allReviews={Object.values(roomReviews)}
+              roomById={activeWorkbenchRoomById}
+              backendUrl={backendUrl}
+              status={result ? "complete" : "running"}
+              loadedRoomCount={result ? conditionedAttention.length : activeWorkbenchResult.rooms.length}
+              isCreatingProject={isCreatingProject}
+              update={updateRoomReview}
+              updateAxis={updateRoomAxis}
+              onCreateProject={result ? undefined : () => void handleCreateDraftProject()}
+              debugMode={debugMode}
+              region={effectiveRegion}
+              roomIdAliases={result?.room_id_aliases}
+            />
+          </div>
         </div>
       )}
 
@@ -1079,11 +1377,12 @@ export default function ExperimentalV2Panel({
             />
           )}
 
-          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-5">
             <div className="rounded-lg bg-slate-50 p-3"><dt className="text-xs font-semibold uppercase text-slate-500">Pages scanned</dt><dd className="mt-1 font-medium">{result.pages.length}</dd></div>
             <div className="rounded-lg bg-slate-50 p-3"><dt className="text-xs font-semibold uppercase text-slate-500">Rooms detected</dt><dd className="mt-1 font-medium">{result.rooms.length}</dd></div>
-            <div className="rounded-lg bg-slate-50 p-3"><dt className="text-xs font-semibold uppercase text-slate-500">Ready to import</dt><dd className="mt-1 font-medium">{acceptedRoomCount}</dd></div>
             <div className="rounded-lg bg-slate-50 p-3"><dt className="text-xs font-semibold uppercase text-slate-500">Needs review</dt><dd className="mt-1 font-medium">{attentionReviews.length}</dd></div>
+            <div className="rounded-lg bg-slate-50 p-3"><dt className="text-xs font-semibold uppercase text-slate-500">Accepted</dt><dd className="mt-1 font-medium">{acceptedRoomCount}</dd></div>
+            <div className="rounded-lg bg-slate-50 p-3"><dt className="text-xs font-semibold uppercase text-slate-500">Excluded</dt><dd className="mt-1 font-medium">{excludedRoomCount}</dd></div>
           </dl>
           {debugMode && (
             <p className="mt-2 text-xs text-slate-500">
@@ -1124,7 +1423,8 @@ export default function ExperimentalV2Panel({
             <button type="button" className="underline" onClick={() => {
               const blob = new Blob([JSON.stringify({ schema_version: "plan-review-session/1.0", run_id: result.run.run_id,
                 room_reviews: roomReviews, review_session_id: reviewSessionId, review_started_at: reviewStartedAt,
-                correction_keys: correctionKeys, active_review_ms: Math.round(activeReviewMs.current) }, null, 2)], { type: "application/json" });
+                correction_keys: correctionKeys, active_review_ms: Math.round(activeReviewMs.current),
+                project_metadata_draft: projectMetadataDraft }, null, 2)], { type: "application/json" });
               const url = URL.createObjectURL(blob);
               const anchor = document.createElement("a"); anchor.href = url; anchor.download = "local-review-draft.json";
               anchor.click(); URL.revokeObjectURL(url);
@@ -1142,28 +1442,80 @@ export default function ExperimentalV2Panel({
                 <span className="rounded-full bg-slate-200 px-3 py-1 text-slate-700">{excludedRoomCount} excluded</span>
               </div>
 
-              {attentionReviews.length > 0 && (
-                <div className="mt-4">
-                  <h4 className="text-sm font-semibold text-slate-900">Needs your attention</h4>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Missing a clear measurement, flagged for a decision, or added manually - these need a look before they're added.
-                  </p>
-                  <ul className="mt-3 space-y-4">
-                    {attentionReviews.map((review) => (
-                      <RoomEvidenceReviewCard
-                        key={review.reviewRoomId}
-                        result={result}
-                        review={review}
-                        sourceRoom={review.sourceRoomId ? roomById.get(review.sourceRoomId) ?? null : null}
-                        backendUrl={backendUrl}
-                        allReviews={Object.values(roomReviews)}
-                        update={(patch) => updateRoomReview(review.reviewRoomId, patch)}
-                        updateAxis={(axis, patch) => updateRoomAxis(review.reviewRoomId, axis, patch)}
-                        debugMode={debugMode}
-                      />
+              {auxiliaryAttention.length > 0 && (
+                <details open className="mt-5 rounded-lg border border-blue-200 bg-blue-50/60 p-3">
+                  <summary className="cursor-pointer text-sm font-semibold text-blue-900">
+                    Closets, storage &amp; hallways ({auxiliaryAttention.length})
+                  </summary>
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                    <p className="max-w-xl text-xs text-blue-800">
+                      Storage, circulation, and similar spaces detected on the plan - usually a quick confirm or
+                      exclude, with no dimension hunting needed.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => excludeAll(auxiliaryAttention)}
+                      className="whitespace-nowrap rounded border border-blue-300 bg-white px-2 py-1 text-xs font-semibold text-blue-900 hover:bg-blue-100"
+                    >
+                      Exclude all {auxiliaryAttention.length}
+                    </button>
+                  </div>
+                  <ul className="mt-3 space-y-2">
+                    {auxiliaryAttention.map((review) => (
+                      <li key={review.reviewRoomId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm">
+                        <div>
+                          <p className="font-semibold text-slate-900">{review.name || "Unnamed room"}</p>
+                          <p className="text-xs text-slate-500">
+                            Length {axisDisplayValue(review.length, result) || "—"} · Width {axisDisplayValue(review.width, result) || "—"}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                          <button type="button" onClick={() => updateRoomReview(review.reviewRoomId, { decision: "accepted" })} className="rounded border border-emerald-300 px-2 py-1 text-emerald-800 hover:bg-emerald-50">Confirm</button>
+                          <button type="button" onClick={() => updateRoomReview(review.reviewRoomId, { decision: "excluded" })} className="rounded border border-slate-300 px-2 py-1 text-slate-700 hover:bg-slate-100">Exclude</button>
+                          <button type="button" onClick={() => setBucketOverrideIds((current) => new Set(current).add(review.reviewRoomId))} className="text-violet-800 underline">Review in detail</button>
+                        </div>
+                      </li>
                     ))}
                   </ul>
-                </div>
+                </details>
+              )}
+
+              {nonHvacAttention.length > 0 && (
+                <details className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <summary className="cursor-pointer text-sm font-semibold text-slate-700">
+                    Filtered out by HVAC rules ({nonHvacAttention.length})
+                  </summary>
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                    <p className="max-w-xl text-xs text-slate-600">
+                      Structural, mechanical, and exterior spaces (crawl spaces, mechanical rooms, porches, decks) that
+                      don't normally receive conditioned airflow. Restore any that should still be reviewed.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => excludeAll(nonHvacAttention)}
+                      className="whitespace-nowrap rounded border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                    >
+                      Exclude all {nonHvacAttention.length}
+                    </button>
+                  </div>
+                  <ul className="mt-3 space-y-2">
+                    {nonHvacAttention.map((review) => (
+                      <li key={review.reviewRoomId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm opacity-90">
+                        <div>
+                          <p className="font-semibold text-slate-900">{review.name || "Unnamed room"}</p>
+                          <p className="text-xs text-slate-500">
+                            Length {axisDisplayValue(review.length, result) || "—"} · Width {axisDisplayValue(review.width, result) || "—"}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                          <button type="button" onClick={() => updateRoomReview(review.reviewRoomId, { decision: "accepted" })} className="rounded border border-emerald-300 px-2 py-1 text-emerald-800 hover:bg-emerald-50">Confirm</button>
+                          <button type="button" onClick={() => updateRoomReview(review.reviewRoomId, { decision: "excluded" })} className="rounded border border-slate-300 px-2 py-1 text-slate-700 hover:bg-slate-100">Exclude</button>
+                          <button type="button" onClick={() => setBucketOverrideIds((current) => new Set(current).add(review.reviewRoomId))} className="text-violet-800 underline">Review in detail</button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
               )}
 
               {readyReviews.length > 0 && (
@@ -1195,28 +1547,59 @@ export default function ExperimentalV2Panel({
                 </div>
               )}
 
-              {decidedReviews.length > 0 && (
-                <details className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <summary className="cursor-pointer text-sm font-semibold text-slate-700">
-                    Accepted and excluded rooms ({decidedReviews.length})
-                  </summary>
-                  <ul className="mt-3 space-y-4">
-                    {decidedReviews.map((review) => (
-                      <RoomEvidenceReviewCard
-                        key={review.reviewRoomId}
-                        result={result}
-                        review={review}
-                        sourceRoom={review.sourceRoomId ? roomById.get(review.sourceRoomId) ?? null : null}
-                        backendUrl={backendUrl}
-                        allReviews={Object.values(roomReviews)}
-                        update={(patch) => updateRoomReview(review.reviewRoomId, patch)}
-                        updateAxis={(axis, patch) => updateRoomAxis(review.reviewRoomId, axis, patch)}
-                        debugMode={debugMode}
-                      />
-                    ))}
-                  </ul>
-                </details>
-              )}
+              {decidedReviews.length > 0 && (() => {
+                const acceptedDecided = decidedReviews.filter((review) => review.decision === "accepted");
+                const excludedDecided = decidedReviews.filter((review) => review.decision === "excluded");
+                const reopen = (reviewRoomId: string) => updateRoomReview(reviewRoomId, { decision: "pending" });
+                return (
+                  <div className="mt-5 space-y-3">
+                    {acceptedDecided.length > 0 && (
+                      <details className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3">
+                        <summary className="cursor-pointer text-sm font-semibold text-emerald-900">
+                          Accepted rooms ({acceptedDecided.length})
+                        </summary>
+                        <ul className="mt-3 space-y-2">
+                          {acceptedDecided.map((review) => (
+                            <li key={review.reviewRoomId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm">
+                              <div>
+                                <p className="font-semibold text-slate-900">{review.name || "Unnamed room"}</p>
+                                <p className="text-xs text-slate-500">
+                                  Length {axisDisplayValue(review.length, result) || "—"} · Width {axisDisplayValue(review.width, result) || "—"}
+                                </p>
+                              </div>
+                              <button type="button" onClick={() => reopen(review.reviewRoomId)} className="text-xs font-semibold text-violet-800 underline">
+                                Reopen for review
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                    {excludedDecided.length > 0 && (
+                      <details className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <summary className="cursor-pointer text-sm font-semibold text-slate-700">
+                          Excluded rooms ({excludedDecided.length})
+                        </summary>
+                        <ul className="mt-3 space-y-2">
+                          {excludedDecided.map((review) => (
+                            <li key={review.reviewRoomId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm opacity-80">
+                              <div>
+                                <p className="font-semibold text-slate-900">{review.name || "Unnamed room"}</p>
+                                <p className="text-xs text-slate-500">
+                                  Length {axisDisplayValue(review.length, result) || "—"} · Width {axisDisplayValue(review.width, result) || "—"}
+                                </p>
+                              </div>
+                              <button type="button" onClick={() => reopen(review.reviewRoomId)} className="text-xs font-semibold text-violet-800 underline">
+                                Reopen for review
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </div>
+                );
+              })()}
             </fieldset>
           )}
 

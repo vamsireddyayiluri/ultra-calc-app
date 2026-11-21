@@ -1,4 +1,5 @@
 import type {
+  JoistSpacingOption,
   PlanImportV2ReviewMetadata,
   PlanImportV2RoomReviewMetadata,
   PlanImportV2SelectedDimension,
@@ -32,6 +33,10 @@ export interface V2RoomReviewSelection {
   duplicateOfReviewRoomId: string;
   length: V2AxisReviewSelection;
   width: V2AxisReviewSelection;
+  // Phase B: reviewer dismissed the joined windows/exterior-doors area for
+  // this room - never populate it into the created RoomInput when cleared.
+  windowsAreaCleared?: boolean;
+  doorsAreaCleared?: boolean;
 }
 
 export interface ConvertedV2RoomInput {
@@ -145,6 +150,7 @@ function assertValidatedAxis(
 export function prepareV2ReviewedImport(
   result: V2ExtractionResult,
   validation: V2ReviewValidation,
+  roomReviews: Record<string, V2RoomReviewSelection> = {},
   reviewedAt = Date.now(),
 ): PreparedV2ReviewedImport {
   if (validation.evidence_run_id !== result.run.run_id) {
@@ -154,6 +160,7 @@ export function prepareV2ReviewedImport(
   const associations = new Map(result.associations.map((item) => [item.association_id, item]));
   const dimensions = new Map(result.dimensions.map((item) => [item.dimension_id, item]));
   const observations = new Map(result.text_observations.map((item) => [item.observation_id, item]));
+  const envelopeByRoomId = new Map((result.room_envelope ?? []).map((item) => [item.room_id, item]));
   const nameByReviewRoomId = new Map(validation.rooms.map((item) => [item.review_room_id, item.reviewed_name]));
   const reviewRooms: PlanImportV2RoomReviewMetadata[] = [];
   const convertedRooms: ConvertedV2RoomInput[] = [];
@@ -245,10 +252,31 @@ export function prepareV2ReviewedImport(
     ) {
       throw new Error(`${room.reviewed_name || "This room"} can't use the same measurement for both length and width. Please choose a different value for one of them.`);
     }
+    const envelope = room.source_room_id ? envelopeByRoomId.get(room.source_room_id) : undefined;
+    const reviewSelection = roomReviews[room.review_room_id];
     const roomInput: RoomInput = {
       ...createEmptyRoom(room.reviewed_name),
       length_m: selectedLength?.meters ?? 0,
       width_m: selectedWidth?.meters ?? 0,
+      // Never bake in createEmptyRoom's generic 21C default for an imported
+      // room - the review workbench has no per-room setpoint field, so this
+      // was never an explicit human override. Leaving it unset lets
+      // calculateRoom() correctly fall back to the project's own indoor
+      // design temperature (which may already reflect a value confidently
+      // extracted from this plan's title block - see project_metadata.py)
+      // instead of silently shadowing it with a one-size-fits-all default.
+      setpointC: undefined,
+      // Deterministic, zero-extra-vision-call Phase A envelope enrichment -
+      // only overrides createEmptyRoom's defaults when confidently found.
+      ...(envelope?.ceiling_height ? { height_m: envelope.ceiling_height.value } : {}),
+      ...(envelope?.joist_spacing_in ? { joistSpacing: envelope.joist_spacing_in.value as JoistSpacingOption } : {}),
+      ...(envelope?.floor_on_ground != null ? { floorOnGround: envelope.floor_on_ground } : {}),
+      // Phase B: confirmed windows/exterior-doors area from the schedule join,
+      // unless the reviewer explicitly cleared it in the workbench.
+      ...(envelope?.windows_area_m2 && !reviewSelection?.windowsAreaCleared
+        ? { windowArea_m2: envelope.windows_area_m2.value } : {}),
+      ...(envelope?.doors_area_m2 && !reviewSelection?.doorsAreaCleared
+        ? { doorArea_m2: envelope.doors_area_m2.value } : {}),
     };
     const roomValidation = validateRoom(roomInput);
     const reviewReasons = [

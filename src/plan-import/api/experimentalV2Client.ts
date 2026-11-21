@@ -1,6 +1,10 @@
 import { auth } from "../../firebase";
 
-async function v2Fetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+// Exported so callers that need a raw authenticated Response - e.g. fetching an
+// evidence image as a blob instead of letting the browser issue an unauthenticated
+// <img src> request - can reuse the exact same auth-header logic as every other
+// V2 API call, instead of duplicating it.
+export async function v2Fetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   await auth.authStateReady();
   const user = auth.currentUser;
@@ -16,6 +20,10 @@ export interface V2ReviewSessionDraft {
   review_started_at: string;
   correction_keys: string[];
   active_review_ms: number;
+  // Optional for backward compatibility with drafts saved before this field
+  // existed - lets the project metadata review (address/region/heating/etc.)
+  // survive a reload the same way the room reviews already do.
+  project_metadata_draft?: import("../pipeline/projectMetadataDraft").ProjectMetadataDraft | null;
 }
 
 export async function getV2ReviewDraft(baseUrl: string, token: string): Promise<{ revision: number; draft: V2ReviewSessionDraft | null }> {
@@ -114,6 +122,13 @@ export interface V2RoomInstance {
   /** Older persisted evidence may omit this additive contract field. */
   import_eligibility?: "eligible" | "requires_review";
   evidence_ids: string[];
+  /** The focus rectangle (pdf_points) - union of the room's own box, every
+   * linked dimension box, and matched opening tags, clamped to its view's
+   * bounds. Used to auto-centre/auto-zoom the full-page viewer onto this
+   * room (see RoomReviewWorkbench.tsx). Older persisted evidence predating
+   * this field, or a room whose page/view evidence was unavailable when
+   * review contexts were built, may have it as null. */
+  review_crop_box?: V2Box | null;
 }
 
 export interface V2ParsedDimension {
@@ -236,6 +251,18 @@ export interface V2ExtractionResult {
   associations: V2RoomDimensionAssociation[];
   application_mappings: V2RoomApplicationMapping[];
   warnings: Array<{ code: string; message: string; evidence_ids: string[] }>;
+  // Phase A additions - optional for safety against any pre-existing cached
+  // review drafts saved before these fields existed.
+  project_metadata?: V2ProjectMetadataExtraction | null;
+  room_envelope?: V2RoomEnvelopeEvidence[];
+  // Phase B addition - parsed Window/Door Schedule rows, deduplicated by mark
+  // across continuation sheets.
+  opening_schedules?: V2ScheduleOpeningEntry[];
+  // Maps a room id from BEFORE final cross-page reconciliation to the
+  // surviving room id it was merged/renamed into - lets an in-progress
+  // review session migrate its room-keyed state (active selection, undo
+  // history, edits) across reconciliation instead of losing it.
+  room_id_aliases?: Record<string, string>;
 }
 
 export interface V2ExtractionOptions {
@@ -250,6 +277,83 @@ export interface V2ExtractionJobStart {
   job_id: string;
   status: "queued";
   status_url: string;
+}
+
+export interface V2FieldEvidence {
+  page_id: string;
+  box: V2Box | null;
+  raw_text: string;
+}
+
+export interface V2ExtractedEnumValue {
+  raw_text: string;
+  // Only set when a deterministic allowlist/alias match was found
+  // (Extract-or-Skip) - never a best guess at the nearest option.
+  mapped_value: string | null;
+  evidence: V2FieldEvidence;
+}
+
+export interface V2ExtractedNumericValue {
+  raw_text: string;
+  // Already normalized to Ultra-Calc's canonical storage unit (meters,
+  // Celsius, or inches for joist spacing) - never a regional display unit.
+  value: number;
+  unit: string;
+  evidence: V2FieldEvidence;
+}
+
+export interface V2ProjectMetadataExtraction {
+  schema_version: "plan-project-metadata/1.0";
+  project_name: V2FieldEvidence | null;
+  project_address: V2FieldEvidence | null;
+  contractor_or_architect: V2FieldEvidence | null;
+  heating_system: V2ExtractedEnumValue | null;
+  insulation_period: V2ExtractedEnumValue | null;
+  glazing: V2ExtractedEnumValue | null;
+  indoor_design_temp_c: V2ExtractedNumericValue | null;
+  outdoor_design_temp_c: V2ExtractedNumericValue | null;
+  // Always a human-confirmed suggestion - never auto-applied to the project.
+  suggested_region: V2ExtractedEnumValue | null;
+}
+
+export type V2OpeningType = "window" | "door";
+
+export interface V2ScheduleOpeningEntry {
+  mark: string;
+  opening_type: V2OpeningType;
+  width_m: number | null;
+  height_m: number | null;
+  area_m2: number | null;
+  raw_width_text: string | null;
+  raw_height_text: string | null;
+  manufacturer: string | null;
+  model_no: string | null;
+  glazing_notes: string | null;
+  evidence: V2FieldEvidence;
+}
+
+export interface V2RoomOpeningAssociation {
+  mark: string;
+  opening_type: V2OpeningType;
+  count: number;
+  unit_area_m2: number | null;
+  total_area_m2: number | null;
+  // False when a tag was detected on the room's walls but its mark wasn't
+  // found in any parsed schedule - surfaced to the reviewer as needs-review.
+  matched_from_schedule: boolean;
+  tag_evidence: V2FieldEvidence | null;
+}
+
+export interface V2RoomEnvelopeEvidence {
+  room_id: string;
+  ceiling_height: V2ExtractedNumericValue | null;
+  joist_spacing_in: V2ExtractedNumericValue | null;
+  floor_on_ground: boolean | null;
+  floor_on_ground_evidence: V2FieldEvidence | null;
+  // Phase B additions.
+  windows_area_m2?: V2ExtractedNumericValue | null;
+  doors_area_m2?: V2ExtractedNumericValue | null;
+  openings?: V2RoomOpeningAssociation[];
 }
 
 export interface V2PartialRoomSummary {
@@ -270,6 +374,13 @@ export interface V2PartialEvidenceSnapshot {
   association_count: number;
   warning_count: number;
   rooms: V2PartialRoomSummary[];
+  review_result: V2ExtractionResult | null;
+  batch_room_ids: string[];
+  // Streams independently of room batches - typically resolves well before
+  // the full room review graph.
+  project_metadata?: V2ProjectMetadataExtraction | null;
+  // Phase B addition - streams as schedule sheets finish parsing.
+  opening_schedules?: V2ScheduleOpeningEntry[];
 }
 
 export interface V2ExtractionJobStatus {
@@ -333,7 +444,18 @@ export interface V2ReviewValidation {
   }>;
 }
 
-export class ExperimentalV2Error extends Error {}
+export class ExperimentalV2Error extends Error {
+  /** The HTTP status code that produced this error, when known from a non-ok
+   * fetch response - e.g. callers use `status === 404` to detect an expired
+   * or already-gone job/artifact instead of fragile message-string matching,
+   * which breaks the moment the user-facing message text changes. */
+  status?: number;
+
+  constructor(message: string, status?: number) {
+    super(message);
+    this.status = status;
+  }
+}
 
 export function experimentalV2EvidenceImageUrl(baseUrl: string, token: string, imageId: string): string {
   return `${baseUrl.replace(/\/$/, "")}/api/experimental/v2/artifacts/${encodeURIComponent(token)}/images/${encodeURIComponent(imageId)}`;
@@ -353,7 +475,7 @@ export async function validateV2Review(
       body: JSON.stringify({ schema_version: "plan-review-draft/1.0", run_id: runId, rooms }),
     },
   );
-  if (!response.ok) throw await errorFromResponse(response);
+  if (!response.ok) throw await errorFromResponse(response, true);
   return (await response.json()) as V2ReviewValidation;
 }
 
@@ -374,7 +496,7 @@ export async function recordV2ReviewMetric(
   if (!response.ok) throw await errorFromResponse(response);
 }
 
-async function errorFromResponse(response: Response): Promise<ExperimentalV2Error> {
+async function errorFromResponse(response: Response, exposeDetail = false): Promise<ExperimentalV2Error> {
   let detail = response.statusText || "Request failed";
   try {
     const body = (await response.json()) as { detail?: unknown; error?: unknown };
@@ -384,7 +506,12 @@ async function errorFromResponse(response: Response): Promise<ExperimentalV2Erro
     // Keep the HTTP status text when the backend did not return JSON.
   }
   console.error(`V2 extraction request failed (${response.status}): ${detail}`);
-  return new ExperimentalV2Error("We couldn't complete this scan right now. Please try again in a moment.");
+  return new ExperimentalV2Error(
+    exposeDetail && response.status === 422
+      ? detail
+      : "We couldn't complete this scan right now. Please try again in a moment.",
+    response.status,
+  );
 }
 
 export async function extractPlanRegionsV2(

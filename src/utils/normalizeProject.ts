@@ -21,10 +21,12 @@ export function normalizeProjectSettings(
       project.mechVent_m3_per_h
     ),
 
-    psiAllowance_W_per_K: normalizePsiAllowance(
-      project.region,
-      project.psiAllowance_W_per_K
-    ),
+    // 🔥 Already normalized by UI (ProjectForm's psi-allowance field converts
+    // through fromDisplayPsiAllowance() before ever reaching project state) -
+    // re-applying normalizePsiAllowance() here double-converted every
+    // imperial-region project's thermal-bridge allowance, silently shrinking
+    // it to roughly half its real value in every heat-loss calculation.
+    psiAllowance_W_per_K: project.psiAllowance_W_per_K,
 
     customUOverrides: project.customUOverrides
       ? {

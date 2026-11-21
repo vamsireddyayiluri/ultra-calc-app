@@ -5,7 +5,7 @@ import type {
   V2RoomDimensionAssociation,
   V2RoomInstance,
 } from "../../plan-import/api/experimentalV2Client";
-import { experimentalV2EvidenceImageUrl } from "../../plan-import/api/experimentalV2Client";
+import { useV2EvidenceImageUrl } from "../../hooks/useV2EvidenceImageUrl";
 import type {
   V2AxisReviewSelection,
   V2RoomReviewSelection,
@@ -23,7 +23,7 @@ interface Props {
   debugMode?: boolean;
 }
 
-function applyMatrix(matrix: number[], x: number, y: number): [number, number] {
+export function applyMatrix(matrix: number[], x: number, y: number): [number, number] {
   const w = matrix[6] * x + matrix[7] * y + matrix[8];
   return [
     (matrix[0] * x + matrix[1] * y + matrix[2]) / w,
@@ -31,7 +31,7 @@ function applyMatrix(matrix: number[], x: number, y: number): [number, number] {
   ];
 }
 
-function imagePercentBox(result: V2ExtractionResult, imageId: string, box: V2Box): CSSProperties | null {
+export function imagePercentBox(result: V2ExtractionResult, imageId: string, box: V2Box): CSSProperties | null {
   const image = result.images.find((item) => item.image_id === imageId);
   if (!image) return null;
   const pdfToPage = image.transforms.find((item) => item.from_space_id === "pdf_points" && item.to_space_id === "page_pixels");
@@ -53,7 +53,7 @@ function imagePercentBox(result: V2ExtractionResult, imageId: string, box: V2Box
   return { left: `${left}%`, top: `${top}%`, width: `${right - left}%`, height: `${bottom - top}%` };
 }
 
-function evidenceImageId(result: V2ExtractionResult, room: V2RoomInstance | null): string | null {
+export function evidenceImageId(result: V2ExtractionResult, room: V2RoomInstance | null): string | null {
   if (!room) return null;
   const context = room.evidence_ids.find((id) => id.endsWith(":review-context") && result.images.some((image) => image.image_id === id));
   if (context) return context;
@@ -179,6 +179,7 @@ export default function RoomEvidenceReviewCard({ result, review, sourceRoom, bac
       : null;
   }).filter((item): item is { axis: string; box: V2Box; style: CSSProperties } => Boolean(item?.style));
   const token = result.run.artifact_access_token;
+  const { src: imageSrc, failed: imageFetchFailed, retry: retryImageFetch } = useV2EvidenceImageUrl(backendUrl, token, imageId);
   const pageNumber = review.sourcePageNumber;
   const requiresInclusionReview = sourceRoom?.import_eligibility === "requires_review";
   const spaceCategory = sourceRoom?.space_category?.replace(/_/g, " ") ?? "room";
@@ -198,16 +199,19 @@ export default function RoomEvidenceReviewCard({ result, review, sourceRoom, bac
             <button type="button" onClick={() => setZoom((value) => Math.min(4, value + 0.5))} disabled={zoom >= 4} className="rounded border px-2 py-1" aria-label="Zoom in">+</button>
             <button type="button" onClick={() => setShowSheet((value) => !value)} disabled={!overviewId} className="rounded border px-2 py-1">{showSheet ? "Close-up view" : "Show on full page"}</button>
           </div>
-          {imageId && token && !imageFailed ? (
+          {imageId && token && !imageFailed && !imageFetchFailed ? (
             <div className="max-h-[36rem] overflow-auto rounded-lg border border-slate-300 bg-slate-100" tabIndex={0} aria-label="Scrollable plan evidence">
             <div className="relative" style={{ width: `${zoom * 100}%` }}>
-              <img
-                src={experimentalV2EvidenceImageUrl(backendUrl, token, imageId)}
-                alt={`Original plan context for ${review.name || "room"}`}
-                className="block h-auto w-full"
-                loading="lazy"
-                onError={() => setImageFailed(true)}
-              />
+              {imageSrc ? (
+                <img
+                  src={imageSrc}
+                  alt={`Original plan context for ${review.name || "room"}`}
+                  className="block h-auto w-full"
+                  onError={() => setImageFailed(true)}
+                />
+              ) : (
+                <div className="flex h-40 items-center justify-center text-xs text-slate-500">Loading image...</div>
+              )}
               {showSheet && sourceRoom?.location.pdf_points && <span className="pointer-events-none absolute border-2 border-emerald-600 bg-emerald-300/20" style={imagePercentBox(result, imageId, sourceRoom.location.pdf_points) ?? {}} aria-label="Room location" />}
               {selected.map((item) => (
                 <span
@@ -231,7 +235,18 @@ export default function RoomEvidenceReviewCard({ result, review, sourceRoom, bac
           ) : (
             <div className="flex min-h-40 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-sm text-slate-500">
               {sourceRoom ? "We couldn't load the plan image for this room, or it has expired. Check your original PDF before making corrections." : "There's no plan image for a room you added manually."}
-              {imageFailed && <button type="button" className="ml-2 underline" onClick={() => setImageFailed(false)}>Try again</button>}
+              {(imageFailed || imageFetchFailed) && (
+                <button
+                  type="button"
+                  className="ml-2 underline"
+                  onClick={() => {
+                    setImageFailed(false);
+                    retryImageFetch();
+                  }}
+                >
+                  Try again
+                </button>
+              )}
             </div>
           )}
           {sourceRoom && imageId ? <p className="mt-1 text-xs text-slate-500">This image is generated automatically from the room and measurement locations on your plan.</p> : null}

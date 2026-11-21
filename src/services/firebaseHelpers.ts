@@ -3,7 +3,6 @@ import db, { auth } from "../firebase/index";
 import {
   collection,
   doc,
-  setDoc,
   addDoc,
   query,
   orderBy,
@@ -16,6 +15,7 @@ import {
 } from "firebase/firestore";
 import { PlanImportProjectMetadata, ProjectSettings, RoomInput } from "../models/projectTypes";
 import { uid } from "../utils/uid";
+import { normalizeRoomName } from "../plan-import/pipeline/detectExistingRoomDuplicates";
 import { DEFAULT_HEATING_SYSTEM } from "../utils/heatingSystem";
 
 export type RichProject = ProjectSettings & {
@@ -61,9 +61,38 @@ function sanitizeForFirestore<T>(value: T): T {
 }
 
 /**
- * Save or update a project and associate it with the current user
+ * Thrown by saveProjectTodb() when the document's Firestore revision no
+ * longer matches what the caller last loaded/saved - meaning another tab or
+ * window has saved this same project in between. Callers already route
+ * thrown save errors through getFriendlySaveErrorMessage() to the user
+ * instead of silently overwriting the other tab's changes.
  */
-export async function saveProjectTodb(project: any, showMessage: any) {
+export class ProjectRevisionConflictError extends Error {
+  constructor() {
+    super(
+      "This project was changed in another tab or window. Reload the project before saving again to avoid overwriting those changes.",
+    );
+    this.name = "ProjectRevisionConflictError";
+  }
+}
+
+export interface SaveProjectResult {
+  id: string;
+  revision: number;
+}
+
+/**
+ * Save or update a project and associate it with the current user.
+ *
+ * Runs the update path as a Firestore transaction guarded by a monotonic
+ * `revision` counter (see models/projectTypes.ts's ProjectSettings.revision):
+ * the transaction re-reads the document's CURRENT revision and rejects the
+ * write with ProjectRevisionConflictError when it no longer matches what
+ * `project.revision` expected, instead of silently overwriting whatever
+ * another tab/window already saved. A brand-new project (no `project.id`
+ * yet) has nothing to conflict with and always succeeds.
+ */
+export async function saveProjectTodb(project: any, showMessage: any): Promise<SaveProjectResult> {
   try {
     const userId = auth.currentUser?.uid;
     project.userId = userId;
@@ -71,14 +100,31 @@ export async function saveProjectTodb(project: any, showMessage: any) {
     if (project.id) {
       // Update existing project
       const docRef = doc(db, "projects", project.id);
-      await setDoc(docRef, sanitizeForFirestore(project), { merge: true });
-      return project.id;
+      const newRevision = await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(docRef);
+        const serverRevision = snapshot.exists() ? ((snapshot.data().revision as number | undefined) ?? 0) : 0;
+        // A missing/undefined project.revision (e.g. a legacy document loaded
+        // before this field existed) is never treated as "nothing to check
+        // against" - it means this tab expects revision 0, exactly like a
+        // server document that has never been saved under revision tracking
+        // would also report 0 via the `?? 0` above. That keeps the very
+        // first save of a legacy project conflict-free while still catching
+        // a real conflict if another tab already advanced it since.
+        const expectedRevision = typeof project.revision === "number" ? project.revision : 0;
+        if (snapshot.exists() && expectedRevision !== serverRevision) {
+          throw new ProjectRevisionConflictError();
+        }
+        const nextRevision = serverRevision + 1;
+        transaction.set(docRef, sanitizeForFirestore({ ...project, revision: nextRevision }), { merge: true });
+        return nextRevision;
+      });
+      return { id: project.id, revision: newRevision };
     } else {
-      // Add new project
+      // Add new project - nothing to conflict with yet.
       project.id = uid();
       const colRef = collection(db, "projects");
-      const docRef = await addDoc(colRef, sanitizeForFirestore(project));
-      return docRef.id;
+      const docRef = await addDoc(colRef, sanitizeForFirestore({ ...project, revision: 1 }));
+      return { id: docRef.id, revision: 1 };
     }
   } catch (error) {
     console.error("Error saving project:", error);
@@ -94,7 +140,7 @@ export async function saveProjectTodb(project: any, showMessage: any) {
  * call; this function only sets the lifecycle field and delegates to the
  * existing, unmodified saveProjectTodb() write path.
  */
-export async function saveDraftToDb(project: RichProject): Promise<string> {
+export async function saveDraftToDb(project: RichProject): Promise<SaveProjectResult> {
   return saveProjectTodb(
     { ...project, status: "draft", updatedAt: Date.now() },
     undefined,
@@ -109,7 +155,7 @@ export async function saveDraftToDb(project: RichProject): Promise<string> {
  * with no business-rule knowledge (see AGENTS.md's separation between
  * the Validation and Firestore/persistence layers).
  */
-export async function publishProjectToDb(project: RichProject): Promise<string> {
+export async function publishProjectToDb(project: RichProject): Promise<SaveProjectResult> {
   return saveProjectTodb(
     { ...project, status: "published", updatedAt: Date.now() },
     undefined,
@@ -207,21 +253,58 @@ export async function appendRoomsToProject(
       throw new Error("You don't have access to this project.");
     }
     let rooms = [...current.rooms];
+    // Recomputed from THIS transaction's freshly-read rooms (re-read on every
+    // automatic retry Firestore performs on conflict) rather than trusting
+    // the possibly-stale matchedExistingRoomId computed earlier against
+    // whatever snapshot the reviewer happened to load - a concurrent edit or
+    // second append in another tab could have renamed or removed that exact
+    // room in between, which must never silently overwrite an unrelated
+    // room that now happens to occupy the same id.
+    const freshRoomsByNormalizedName = new Map<string, RoomInput>();
+    for (const room of rooms) {
+      const key = normalizeRoomName(room.name);
+      if (key && !freshRoomsByNormalizedName.has(key)) freshRoomsByNormalizedName.set(key, room);
+    }
     for (const entry of decisions) {
       if (entry.decision === "skip") continue;
-      if (entry.decision === "replace" && entry.matchedExistingRoomId) {
-        rooms = rooms.map((room) =>
-          room.id === entry.matchedExistingRoomId
-            ? { ...room, name: entry.roomInput.name, length_m: entry.roomInput.length_m, width_m: entry.roomInput.width_m }
-            : room,
+      if (entry.decision === "replace") {
+        const normalizedIncomingName = normalizeRoomName(entry.roomInput.name);
+        const matchStillValid = Boolean(
+          entry.matchedExistingRoomId
+            && rooms.some((room) => room.id === entry.matchedExistingRoomId && normalizeRoomName(room.name) === normalizedIncomingName),
         );
+        const targetId = matchStillValid
+          ? entry.matchedExistingRoomId
+          : freshRoomsByNormalizedName.get(normalizedIncomingName)?.id ?? null;
+        if (targetId) {
+          rooms = rooms.map((room) =>
+            room.id === targetId
+              ? { ...room, name: entry.roomInput.name, length_m: entry.roomInput.length_m, width_m: entry.roomInput.width_m }
+              : room,
+          );
+          continue;
+        }
+        // No still-valid duplicate match (renamed/removed since the reviewer
+        // decided, and no equivalent room exists to replace instead) - keep
+        // the reviewed room by adding it rather than silently dropping it.
+        rooms = [...rooms, entry.roomInput];
         continue;
       }
       rooms = [...rooms, entry.roomInput];
     }
+    // Legacy documents saved before this field existed have no revision at
+    // all - treated as 0, so this append still correctly advances it to 1,
+    // exactly like saveProjectTodb's own "missing means 0" handling above.
+    // Every write must bump this counter (not just full-project saves),
+    // otherwise another tab with this same project open (editing it directly
+    // rather than appending) could still load a stale revision that matches
+    // the server's unmoved counter and silently overwrite these newly
+    // appended rooms on its own next autosave.
+    const currentRevision = typeof current.revision === "number" ? current.revision : 0;
     const next: RichProject = {
       ...current,
       rooms,
+      revision: currentRevision + 1,
       planImportHistory: [...(current.planImportHistory ?? []), runMetadata],
       updatedAt: Date.now(),
     };

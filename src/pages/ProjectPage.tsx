@@ -22,7 +22,7 @@ import { validateProject } from "../validations.ts/projectValidator";
 import { getFriendlySaveErrorMessage } from "../utils/friendlyError";
 import { exportPDF, loadImageAsBase64 } from "../utils/pdfExport";
 import { createReadinessGate } from "../utils/exportReadiness";
-import { createDraftProject, createEmptyRoom } from "../utils/projectFactory";
+import { createDraftProject, createEmptyRoom, ensureRoomIds } from "../utils/projectFactory";
 import { RoomDetailsExport } from "../components/export/RoomDetailsExport";
 import { RoomLayoutExport } from "../components/export/RoomLayoutExport";
 import { CoverPage } from "../components/export/CoverPage";
@@ -36,6 +36,15 @@ export default function ProjectPage() {
   const [project, setProject] = useState<
     (ProjectSettings & { rooms: RoomInput[] }) | null
   >(null);
+  // Bumped ONLY by user-initiated edits (updateProject/addRoom/updateRoom/
+  // removeRoom below) - never by syncing persistence metadata (id, revision,
+  // status) back from a completed Firestore save. The autosave effect keys
+  // off this instead of `project` itself: `persistDraftIfEditable` merges the
+  // new `revision` Firestore just returned into `project`, which previously
+  // re-triggered that same effect (since it depended on `project`), which
+  // saved again, which bumped `revision` again, forever - an infinite
+  // autosave loop that never needed a single further user edit to continue.
+  const [dirtyVersion, setDirtyVersion] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const { showMessage } = useSnackbar();
   const headerRef = useRef<HTMLDivElement | null>(null);
@@ -74,7 +83,12 @@ export default function ProjectPage() {
     const fetchData = async () => {
       if (id) {
         const found = await fetchProjectById(id);
-        setProject(found || null);
+        // Legacy Firestore rooms saved before `RoomInput.id` existed may lack
+        // it; backfill a stable id here (once, on load) so every room has an
+        // immutable identity before updateRoom/removeRoom below ever run -
+        // otherwise two same-named rooms (e.g. "BEDROOM" on different
+        // floors) could be matched and edited/deleted by name collision.
+        setProject(found ? { ...found, rooms: ensureRoomIds(found.rooms) } : null);
       } else {
         setProject(createDraftProject());
       }
@@ -85,6 +99,7 @@ export default function ProjectPage() {
 
   const updateProject = (patch: Partial<ProjectSettings>) => {
     setProject((prev) => ({ ...prev, ...patch }));
+    setDirtyVersion((v) => v + 1);
   };
 
   // Draft-safe, silent persistence — never validates, never touches a
@@ -97,8 +112,13 @@ export default function ProjectPage() {
   ) => {
     if (proj.status === "published") return;
     try {
-      const savedId = await saveDraftToDb(proj);
-      if (!id && savedId) navigate(`/project/${savedId}`, { replace: true });
+      const saved = await saveDraftToDb(proj);
+      // Keep local state in sync with what Firestore now has - the next
+      // autosave tick must compare against THIS revision, not the one that
+      // was current before this save, or it would immediately (and
+      // incorrectly) look like a conflict with its own prior save.
+      setProject((prev) => (prev ? { ...prev, id: saved.id, revision: saved.revision } : prev));
+      if (!id && saved.id) navigate(`/project/${saved.id}`, { replace: true });
     } catch (err) {
       showMessage(
         getFriendlySaveErrorMessage(err, "Failed to save automatically."),
@@ -157,21 +177,24 @@ export default function ProjectPage() {
 
     const newRoom: RoomInput = createEmptyRoom(`Room ${project.rooms.length + 1}`);
     setProject({ ...project, rooms: [...project.rooms, newRoom] });
+    setDirtyVersion((v) => v + 1);
     showMessage("Room Added", "success");
   };
 
-  const updateRoom = (roomName: string, patch: Partial<RoomInput>) => {
+  const updateRoom = (roomId: string, patch: Partial<RoomInput>) => {
     if (!project) return;
     const updatedRooms = project.rooms.map((r) =>
-      r.name === roomName ? { ...r, ...patch } : r,
+      r.id === roomId ? { ...r, ...patch } : r,
     );
     setProject({ ...project, rooms: updatedRooms });
+    setDirtyVersion((v) => v + 1);
   };
 
-  const removeRoom = (roomName: string) => {
+  const removeRoom = (roomId: string) => {
     if (!project) return;
-    const updatedRooms = project.rooms.filter((r) => r.name !== roomName);
+    const updatedRooms = project.rooms.filter((r) => r.id !== roomId);
     setProject({ ...project, rooms: updatedRooms });
+    setDirtyVersion((v) => v + 1);
   };
 
   const summary: ProjectSummary | null = useProjectSummary(
@@ -213,9 +236,9 @@ export default function ProjectPage() {
       const validation = validateProject(project);
 
       if (validation.complete) {
-        const savedId = await publishProjectToDb(project);
-        setProject((prev) => (prev ? { ...prev, status: "published" } : prev));
-        if (!id && savedId) navigate(`/project/${savedId}`, { replace: true });
+        const saved = await publishProjectToDb(project);
+        setProject((prev) => (prev ? { ...prev, id: saved.id, revision: saved.revision, status: "published" } : prev));
+        if (!id && saved.id) navigate(`/project/${saved.id}`, { replace: true });
         showMessage("Project saved and published.", "success");
       } else if (project.status === "published") {
         showMessage(
@@ -223,8 +246,9 @@ export default function ProjectPage() {
           "error",
         );
       } else {
-        const savedId = await saveDraftToDb(project);
-        if (!id && savedId) navigate(`/project/${savedId}`, { replace: true });
+        const saved = await saveDraftToDb(project);
+        setProject((prev) => (prev ? { ...prev, id: saved.id, revision: saved.revision } : prev));
+        if (!id && saved.id) navigate(`/project/${saved.id}`, { replace: true });
         showMessage(
           "Saved as a draft. Fix the highlighted issues to publish this project.",
           "info",
@@ -243,6 +267,18 @@ export default function ProjectPage() {
   // Autosave — draft-safe only. Per the finalized workflow, there are no
   // automatic Firestore saves once a project is Published; see
   // persistDraftIfEditable above, shared with the pre-export save.
+  //
+  // Deliberately keyed on `dirtyVersion`, NOT `project` itself: this effect
+  // still reads the latest `project` from closure (a fresh closure is
+  // created every render regardless of the dependency array, so it's never
+  // stale), but only actually RUNS again when a user edit bumped
+  // `dirtyVersion`. If this depended on `project` directly, the
+  // `setProject` call inside persistDraftIfEditable that syncs back the
+  // Firestore-assigned `revision` would itself change `project`'s
+  // reference, re-triggering this same effect, saving again, bumping
+  // `revision` again — an infinite autosave loop with no further user
+  // input needed to keep it going.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!project) return;
 
@@ -251,7 +287,7 @@ export default function ProjectPage() {
     }, 800); // small delay to avoid saving every keystroke
 
     return () => clearTimeout(timeout);
-  }, [project]);
+  }, [dirtyVersion]);
 
   if (!project)
     return (

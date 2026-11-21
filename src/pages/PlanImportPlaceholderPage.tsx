@@ -8,6 +8,7 @@ import { auth } from "../firebase";
 import { loadPdfDocument } from "../plan-import/browser/pdfDocument";
 import { renderPdfPage, type PdfRenderResult } from "../plan-import/browser/pdfRenderer";
 import type { PreparedV2ReviewedImport } from "../plan-import/pipeline/convertV2ReviewToRoomInput";
+import { applyProjectMetadataOverrides, type ProjectMetadataDraft } from "../plan-import/pipeline/projectMetadataDraft";
 import ExperimentalV2Panel from "../components/plan-import/ExperimentalV2Panel";
 import { saveDraftToDb } from "../services/firebaseHelpers";
 import { getFriendlySaveErrorMessage } from "../utils/friendlyError";
@@ -134,7 +135,10 @@ export default function PlanImportPlaceholderPage() {
     if (inputRef.current) inputRef.current.value = "";
   };
 
-  const handleCreateProjectFromV2Review = async (prepared: PreparedV2ReviewedImport) => {
+  const handleCreateProjectFromV2Review = async (
+    prepared: PreparedV2ReviewedImport,
+    projectMetadata: ProjectMetadataDraft,
+  ) => {
     if (prepared.convertedRooms.length === 0) {
       throw new Error("Accept at least one reviewed room before creating a project.");
     }
@@ -171,19 +175,22 @@ export default function PlanImportPlaceholderPage() {
           };
         }),
       };
-      const draftProject = createDraftProject({
-        idPrefix: "plan-import-v2",
-        name: `Plan import V2 - ${planNameFromFileName(prepared.fileName)}`,
-        planImport,
-        rooms: prepared.convertedRooms.map((converted) => converted.roomInput),
-      });
+      const draftProject = applyProjectMetadataOverrides(
+        createDraftProject({
+          idPrefix: "plan-import-v2",
+          name: `Plan import V2 - ${planNameFromFileName(prepared.fileName)}`,
+          planImport,
+          rooms: prepared.convertedRooms.map((converted) => converted.roomInput),
+        }),
+        projectMetadata,
+      );
 
       console.groupCollapsed("[PlanImport V2] Creating draft project from reviewed evidence");
       console.debug("[PlanImport V2] Review contract", persistedReview);
       console.debug("[PlanImport V2] Import metadata", summarizePlanImportForDebug(planImport));
       console.groupEnd();
 
-      const savedId = await saveDraftToDb(draftProject);
+      const { id: savedId } = await saveDraftToDb(draftProject);
       showMessage("Draft project created from your reviewed rooms.", "success");
       navigate(`/project/${savedId}`);
     } catch (saveError) {
@@ -198,7 +205,7 @@ export default function PlanImportPlaceholderPage() {
 
   return (
     <AppLayout>
-      <section className="mx-auto max-w-4xl py-6">
+      <section className="w-full px-4 py-6 sm:px-6 lg:px-8">
         <button
           type="button"
           onClick={() => navigate("/project/new")}

@@ -52,6 +52,16 @@ export interface ProjectSettings {
   createdAt?: number;
   /** Epoch ms, stamped on every successful draft/publish save. Missing on projects never saved through that path. */
   updatedAt?: number;
+  /**
+   * Monotonic optimistic-concurrency counter, bumped by exactly 1 on every
+   * successful Firestore save (see services/firebaseHelpers.ts's
+   * saveProjectTodb). A save whose in-memory `revision` no longer matches
+   * what's actually stored means another tab/window saved in between - that
+   * save is rejected instead of silently overwriting the other tab's
+   * changes. Missing on projects saved before this field existed, or not
+   * yet saved at all - treated as "nothing to conflict with" either way.
+   */
+  revision?: number;
   name: string;
   contractor: string;
   address: string;

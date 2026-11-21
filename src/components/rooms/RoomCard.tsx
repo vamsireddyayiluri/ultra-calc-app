@@ -305,7 +305,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
     }
   }, [room.doorArea_m2, project.region]);
 
-  // 🔹 Build layout + load images asynchronously
+  // ðŸ”¹ Build layout + load images asynchronously
   React.useEffect(() => {
     let cancelled = false;
     console.log("Building layout for room:", room.name);
@@ -488,7 +488,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           </span>
           <button
             type="button"
-            onClick={() => onRemoveRoom(room.name)}
+            onClick={() => onRemoveRoom(room.id)}
             aria-label={`Remove ${room.name || "room"}`}
             className="shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
           >
@@ -536,7 +536,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
                       className={inputClass("name")}
                       value={room.name}
                       onChange={(e) =>
-                        onUpdateRoom(room.name, { name: e.target.value })
+                        onUpdateRoom(room.id, { name: e.target.value })
                       }
                       onBlur={() => markTouched("name")}
                       {...fieldA11yProps("name")}
@@ -571,7 +571,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
                           e.target.value === ""
                             ? undefined
                             : Number(e.target.value);
-                        onUpdateRoom(room.name, {
+                        onUpdateRoom(room.id, {
                           setpointC: fromDisplayTemperature(
                             project.region,
                             raw,
@@ -610,7 +610,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
                           e.target.value === ""
                             ? undefined
                             : Number(e.target.value);
-                        onUpdateRoom(room.name, {
+                        onUpdateRoom(room.id, {
                           length_m: fromDisplayLength(project.region, raw),
                         });
                       }}
@@ -646,7 +646,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
                           e.target.value === ""
                             ? undefined
                             : Number(e.target.value);
-                        onUpdateRoom(room.name, {
+                        onUpdateRoom(room.id, {
                           width_m: fromDisplayLength(project.region, raw),
                         });
                       }}
@@ -682,7 +682,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
                           e.target.value === ""
                             ? undefined
                             : Number(e.target.value);
-                        onUpdateRoom(room.name, {
+                        onUpdateRoom(room.id, {
                           height_m: fromDisplayLength(project.region, raw),
                         });
                       }}
@@ -719,7 +719,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
                           e.target.value === ""
                             ? undefined
                             : Number(e.target.value);
-                        onUpdateRoom(room.name, {
+                        onUpdateRoom(room.id, {
                           exteriorLen_m: fromDisplayLength(project.region, raw),
                         });
                       }}
@@ -757,7 +757,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
                         const raw =
                           windowInput === "" ? undefined : Number(windowInput);
 
-                        onUpdateRoom(room.name, {
+                        onUpdateRoom(room.id, {
                           windowArea_m2: fromDisplayArea(project.region, raw),
                         });
                         markTouched("windowArea_m2");
@@ -795,7 +795,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
                         const raw =
                           doorInput === "" ? undefined : Number(doorInput);
 
-                        onUpdateRoom(room.name, {
+                        onUpdateRoom(room.id, {
                           doorArea_m2: fromDisplayArea(project.region, raw),
                         });
                         markTouched("doorArea_m2");
@@ -819,7 +819,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
                     className="w-full border border-slate-300 rounded-md px-3 py-2"
                     value={room.joistSpacing ?? ""}
                     onChange={(e) =>
-                      onUpdateRoom(room.name, {
+                      onUpdateRoom(room.id, {
                         joistSpacing: Number(
                           e.target.value,
                         ) as JoistSpacingOption,
@@ -843,7 +843,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
                     className="w-full border border-slate-300 rounded-md px-3 py-2"
                     value={room.floorCover ?? ""}
                     onChange={(e) =>
-                      onUpdateRoom(room.name, {
+                      onUpdateRoom(room.id, {
                         floorCover: e.target.value as FloorCoverKey,
                       })
                     }
@@ -875,7 +875,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
                       onChange={(e) => {
                         const value = e.target.value as InstallMethod;
 
-                        onUpdateRoom(room.name, {
+                        onUpdateRoom(room.id, {
                           installMethod: value,
                           floorOnGround: value === "INSLAB",
                         });
@@ -904,7 +904,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
                       type="checkbox"
                       checked={Boolean(room.floorOnGround)}
                       onChange={(e) =>
-                        onUpdateRoom(room.name, {
+                        onUpdateRoom(room.id, {
                           floorOnGround: e.target.checked,
                         })
                       }
@@ -1106,7 +1106,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
 
               {ultra.selection.supplementalWarning && (
                 <div className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-md p-2 mb-2">
-                  🔥 Add Supplemental Heat Recommended
+                  ðŸ”¥ Add Supplemental Heat Recommended
                 </div>
               )}
             </div>

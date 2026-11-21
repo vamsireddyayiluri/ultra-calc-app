@@ -8,7 +8,7 @@ export interface AppendRoomCandidate {
 }
 
 /** Lowercase, strip punctuation, collapse whitespace - name comparison only, never dimensions. */
-function normalizeRoomName(name: string): string {
+export function normalizeRoomName(name: string): string {
   return name
     .trim()
     .toLowerCase()

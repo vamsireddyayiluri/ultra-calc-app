@@ -192,6 +192,8 @@ export default function AppendPlanImportPage() {
   // Reused unchanged: prepared.convertedRooms already ran through the full Luna
   // V2 extraction/job-polling/review/conversion pipeline inside ExperimentalV2Panel.
   // This handler only decides WHERE those rooms go - it never re-derives them.
+  // Project-level metadata (address/region/heat source/etc) only applies when
+  // creating a brand-new project, not when appending rooms to this existing one.
   const handleReviewedImport = async (prepared: PreparedV2ReviewedImport) => {
     if (!project) {
       throw new Error("This project hasn't finished loading yet. Please wait and try again.");
@@ -279,7 +281,7 @@ export default function AppendPlanImportPage() {
 
   return (
     <AppLayout>
-      <section className="mx-auto max-w-4xl py-6">
+      <section className="w-full px-4 py-6 sm:px-6 lg:px-8">
         <button
           type="button"
           onClick={handleBackClick}
@@ -376,6 +378,7 @@ export default function AppendPlanImportPage() {
             isCreatingProject={isAppending}
             onCreateDraftProject={handleReviewedImport}
             debugMode={debugMode}
+            knownRegion={project.region}
           />
 
           {pendingAppend && (

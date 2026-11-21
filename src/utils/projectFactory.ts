@@ -25,6 +25,18 @@ export function createEmptyRoom(name = "Room"): RoomInput {
   };
 }
 
+/**
+ * Backfills a stable, unique `id` on any room that lacks one (e.g. legacy
+ * Firestore documents saved before `RoomInput.id` existed). Rooms are
+ * identified and edited/removed strictly by `id` elsewhere in the app (see
+ * ProjectPage.tsx/RoomCard.tsx) - without this, two rooms sharing the same
+ * `name` (e.g. "BEDROOM" on two different floors) could silently shadow one
+ * another once their id falls back to an empty string.
+ */
+export function ensureRoomIds(rooms: RoomInput[]): RoomInput[] {
+  return rooms.map((room) => (room.id ? room : { ...room, id: uid() }));
+}
+
 export function createDraftProject({
   idPrefix,
   name = "",
