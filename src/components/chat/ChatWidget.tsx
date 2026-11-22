@@ -5,9 +5,18 @@ import { useAuth } from "../../contexts/AuthProvider";
 
 type ChatRole = "user" | "assistant";
 
+interface ChatSource {
+  source: string;
+  location: string;
+  snippet: string;
+  score: number;
+  url?: string | null;
+}
+
 interface ChatTurn {
   role: ChatRole;
   content: string;
+  sources?: ChatSource[];
 }
 
 // Same python-backend FastAPI service used by plan-import (see
@@ -57,7 +66,12 @@ export const ChatWidget: React.FC = () => {
       const response = await fetch(`${CHAT_BACKEND_URL}/api/v1/chat`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ message: trimmed, history }),
+        // Only role/content are part of the backend's request contract - strip
+        // any locally-attached `sources` before sending history back up.
+        body: JSON.stringify({
+          message: trimmed,
+          history: history.map(({ role, content }) => ({ role, content })),
+        }),
       });
       if (response.status === 401) {
         throw new Error("Please sign in to use the assistant.");
@@ -67,8 +81,8 @@ export const ChatWidget: React.FC = () => {
         console.error("Chat request failed:", response.status, body);
         throw new Error("We couldn't get a response right now. Please try again.");
       }
-      const data: { answer: string } = await response.json();
-      setMessages((prev) => [...prev, { role: "assistant", content: data.answer }]);
+      const data: { answer: string; sources?: ChatSource[] } = await response.json();
+      setMessages((prev) => [...prev, { role: "assistant", content: data.answer, sources: data.sources }]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "We couldn't get a response right now. Please try again.");
     } finally {
@@ -139,17 +153,46 @@ export const ChatWidget: React.FC = () => {
           </>
         )}
 
-        {messages.map((turn, index) => (
-          <div key={index} className={`flex ${turn.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div
-              className={`max-w-[85%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm ${
-                turn.role === "user" ? "bg-blue-600 text-white" : "bg-white text-slate-800 shadow"
-              }`}
-            >
-              {turn.content}
+        {messages.map((turn, index) => {
+          const citations =
+            turn.role === "assistant" && turn.sources
+              ? Array.from(
+                  new Map(
+                    turn.sources.filter((source) => source.url).map((source) => [source.url, source])
+                  ).values()
+                )
+              : [];
+          return (
+            <div key={index} className={`flex ${turn.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div
+                className={`max-w-[85%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm ${
+                  turn.role === "user" ? "bg-blue-600 text-white" : "bg-white text-slate-800 shadow"
+                }`}
+              >
+                {turn.content}
+                {citations.length > 0 && (
+                  <div className="mt-2 border-t border-slate-100 pt-2">
+                    <p className="text-xs font-semibold tracking-wide text-slate-400">SOURCES</p>
+                    <ul className="mt-1 space-y-1">
+                      {citations.map((source) => (
+                        <li key={source.url}>
+                          <a
+                            href={source.url ?? undefined}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="break-words text-xs text-blue-600 underline hover:text-blue-800"
+                          >
+                            {source.source}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         {isLoading && (
           <div className="flex items-center gap-2 text-sm text-slate-500">
             <Loader2 className="h-4 w-4 animate-spin" /> Finding the best answer for you...
